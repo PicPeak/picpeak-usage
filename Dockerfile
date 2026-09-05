@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
-RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+RUN npm run build && npm prune --omit=dev --package-lock=false --no-audit --no-fund
 
 FROM node:22-bookworm-slim
 WORKDIR /app
