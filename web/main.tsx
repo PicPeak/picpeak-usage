@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   api,
   download,
+  downloadWith,
   featureNames,
   day,
   stamp,
@@ -57,19 +58,179 @@ function PageHeading({
   );
 }
 
-function Overview() {
+/* One credential for reading: the installation's private lookup hash. It is
+   verified against the collector, then kept only in page memory. */
+function AccessForm({
+  onUnlock,
+  label,
+  eyebrow,
+  intro,
+}: {
+  onUnlock: (hash: string) => void;
+  label: string;
+  eyebrow: string;
+  intro: string;
+}) {
+  const [hash, setHash] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  return (
+    <section className="panel access" id="access">
+      <p className="eyebrow">{eyebrow}</p>
+      <p className="small muted">{intro}</p>
+      <form
+        className="lookup"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          const value = hash.trim();
+          setBusy(true);
+          setError(false);
+          try {
+            await api("/api/participant/summary", { token: value });
+            onUnlock(value);
+          } catch {
+            setError(true);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          Installation lookup hash
+          <input
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            required
+            pattern="[a-f0-9]{64}"
+            value={hash}
+            onChange={(e) => setHash(e.target.value)}
+            placeholder="64 hexadecimal characters"
+          />
+        </label>
+        <button className="btn primary" disabled={busy}>
+          {busy ? "Checking…" : label}
+        </button>
+      </form>
+      {error && (
+        <p className="notice error" role="alert">
+          No participating installation matches this hash, or the service is
+          unavailable. Deleted identities no longer have access.
+        </p>
+      )}
+      <p className="caption">
+        Found in PicPeak → Settings → Product usage &amp; feedback. Read-only:
+        it cannot vote, send reports, or delete data.
+      </p>
+    </section>
+  );
+}
+
+function Overview({
+  credential,
+  unlock,
+  expire,
+}: {
+  credential: string;
+  unlock: (hash: string) => void;
+  expire: () => void;
+}) {
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
   const [metric, setMetric] = useState<"configured" | "used">("used");
   const [records, setRecords] = useState<unknown[] | null>(null);
   const load = () => {
+    if (!credential) return;
     setError(false);
-    api<Summary>("/api/public/summary")
+    api<Summary>("/api/participant/summary", { token: credential })
       .then(setData)
-      .catch(() => setError(true));
+      .catch((error) => {
+        if (error.message === "PARTICIPANT_AUTH_REQUIRED") expire();
+        else setError(true);
+      });
   };
-  useEffect(load, []);
+  useEffect(load, [credential]);
+  const hero = (
+    <div>
+      <h1>
+        <span className="rise" style={{ display: "block" }}>
+          A clearer picture.
+        </span>
+        <span className="rise" style={{ ...delay(70), display: "block" }}>
+          <em>A better PicPeak.</em>
+        </span>
+      </h1>
+      <p className="lead rise" style={delay(200)}>
+        Participating installations see which features help photographers most:
+        the same data we use to decide what comes next.
+      </p>
+      <div className="hero-actions rise" style={delay(260)}>
+        <a className="btn primary" href={credential ? "#adoption" : "#access"}>
+          {credential ? "Explore feature adoption" : "Enter your lookup hash"}
+        </a>
+        <a
+          className="textlink ink small"
+          href="/transparency"
+          onClick={(e) => navigateEvent(e, "/transparency")}
+        >
+          How participation works
+        </a>
+      </div>
+      <p className="label meta rise" style={delay(340)}>
+        Opt-in · Signed daily reports · Data for participants only
+      </p>
+    </div>
+  );
+  if (!credential)
+    return (
+      <>
+        <section className="hero">
+          {hero}
+          <div className="rise" style={delay(120)}>
+            <AccessForm
+              eyebrow="Participant access"
+              intro="Aggregate usage data is shown to participating installations, not to the public. Your lookup hash unlocks the dashboard, the dataset export and your own raw packets."
+              label="Open the dashboard"
+              onUnlock={unlock}
+            />
+          </div>
+        </section>
+        <section className="prose-columns quiet">
+          <div className="prose">
+            <h2>Feature signals, not analytics</h2>
+            <p>
+              Each participating installation sends one signed daily report:
+              which capabilities are configured and which were used, as yes/no.
+              No visitor tracking, no counts, no names.
+            </p>
+          </div>
+          <div className="prose">
+            <h2>Every installation is visible</h2>
+            <p>
+              Participants see the whole dataset, including groups of one. That
+              is why it is not published anonymously: the schema and the rules
+              are public, the numbers belong to the people who contribute them.
+            </p>
+          </div>
+          <div className="prose">
+            <h2>Requests are open to all</h2>
+            <p>
+              Published feature requests and testimonials appear only with the
+              author’s permission and can be read without signing in. Voting
+              needs a connected PicPeak session.
+            </p>
+            <a
+              className="textlink ink small"
+              href="/requests"
+              onClick={(e) => navigateEvent(e, "/requests")}
+            >
+              Read the feature requests
+            </a>
+          </div>
+        </section>
+      </>
+    );
   if (error) return <Failure retry={load} />;
   if (!data)
     return (
@@ -87,35 +248,7 @@ function Overview() {
   return (
     <>
       <section className="hero">
-        <div>
-          <h1>
-            <span className="rise" style={{ display: "block" }}>
-              A clearer picture.
-            </span>
-            <span className="rise" style={{ ...delay(70), display: "block" }}>
-              <em>A better PicPeak.</em>
-            </span>
-          </h1>
-          <p className="lead rise" style={delay(200)}>
-            Which features help photographers most? Explore the same open data
-            we use to decide what comes next.
-          </p>
-          <div className="hero-actions rise" style={delay(260)}>
-            <a className="btn primary" href="#adoption">
-              Explore feature adoption
-            </a>
-            <a
-              className="textlink ink small"
-              href="/transparency"
-              onClick={(e) => navigateEvent(e, "/transparency")}
-            >
-              How participation works
-            </a>
-          </div>
-          <p className="label meta rise" style={delay(340)}>
-            Opt-in · Signed daily reports · No visitor tracking
-          </p>
-        </div>
+        {hero}
         <ul className="stats rise" style={delay(120)} aria-label="Participation summary">
           <li>
             <span className="label">Reporting installations</span>
@@ -236,19 +369,30 @@ function Overview() {
             </p>
           </section>
           <section className="callout">
-            <p className="eyebrow">Open data</p>
+            <p className="eyebrow">Participant dataset</p>
             <h2>See the whole picture.</h2>
             <p>
-              Every feature combination is included. No installation hashes or
-              signing keys are exposed.
+              Every feature combination is included, including groups of one.
+              No installation hashes or signing keys are exposed.
             </p>
-            <a className="btn primary" href="/api/public/export" download>
-              Download public dataset (NDJSON)
-            </a>
+            <button
+              className="btn primary"
+              onClick={() =>
+                downloadWith(
+                  "/api/participant/export",
+                  credential,
+                  "picpeak-usage-dataset.ndjson",
+                ).catch(() => setError(true))
+              }
+            >
+              Download the dataset (NDJSON)
+            </button>
             <button
               className="btn quiet"
               onClick={() =>
-                api<{ records: unknown[] }>("/api/public/dataset")
+                api<{ records: unknown[] }>("/api/participant/dataset", {
+                  token: credential,
+                })
                   .then((v) => setRecords(v.records))
                   .catch(() => setError(true))
               }
@@ -284,7 +428,7 @@ function Overview() {
       </section>
       {records && (
         <section className="panel section">
-          <p className="eyebrow">Public records</p>
+          <p className="eyebrow">Dataset records</p>
           <h2>The first 200 snapshots</h2>
           <p className="caption" style={{ marginTop: "0.5rem" }}>
             One latest feature snapshot per reporting installation. The complete
@@ -297,8 +441,13 @@ function Overview() {
   );
 }
 
-function Packets() {
-  const [hash, setHash] = useState("");
+function Packets({
+  hash,
+  unlock,
+}: {
+  hash: string;
+  unlock: (hash: string) => void;
+}) {
   const [result, setResult] = useState<{
     installation_id: string;
     packets: {
@@ -307,58 +456,44 @@ function Packets() {
       signature_verified: boolean;
     }[];
   } | null>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  useEffect(() => {
+    if (!hash) {
+      setResult(null);
+      return;
+    }
+    setError(false);
+    api<typeof result>("/api/participant/lookup", {
+      method: "POST",
+      body: { installation_id: hash },
+    })
+      .then(setResult)
+      .catch(() => setError(true));
+  }, [hash]);
   return (
     <>
       <PageHeading
         eyebrow="Nothing hidden"
         title="Your data, exactly as received."
-        text="Enter the private lookup hash from PicPeak’s usage settings to inspect and download your accepted packets. It gives read-only access; it cannot submit reports, vote, or delete data."
+        text="Inspect and download every accepted packet your installation has sent. The lookup hash gives read-only access; it cannot submit reports, vote, or delete data."
       />
-      <form
-        className="panel lookup"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError(false);
-          setResult(null);
-          try {
-            setResult(
-              await api("/api/participant/lookup", {
-                method: "POST",
-                body: { installation_id: hash.trim() },
-              }),
-            );
-          } catch {
-            setError(true);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <label>
-          Installation lookup hash
-          <input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            required
-            pattern="[a-f0-9]{64}"
-            value={hash}
-            onChange={(e) => setHash(e.target.value)}
-            placeholder="64 hexadecimal characters"
-          />
-        </label>
-        <button className="btn primary" disabled={busy}>
-          {busy ? "Looking up…" : "Inspect my packets"}
-        </button>
-      </form>
+      {!hash && (
+        <AccessForm
+          eyebrow="Your installation"
+          intro="Enter the private lookup hash from PicPeak’s usage settings. It also unlocks the aggregate dashboard."
+          label="Inspect my packets"
+          onUnlock={unlock}
+        />
+      )}
+      {hash && !result && !error && (
+        <p className="muted" role="status">
+          Loading your packets…
+        </p>
+      )}
       {error && (
         <p className="notice error" role="alert">
           No accessible installation was found, or the service is unavailable.
-          Check the hash and try again. Deleted identities no longer have
-          access.
+          Deleted identities no longer have access.
         </p>
       )}
       {result && (
@@ -527,7 +662,7 @@ function Transparency() {
       <PageHeading
         eyebrow="Privacy you can inspect"
         title="The rules are part of the product."
-        text="Participation is optional. The schema is public. Your raw packets are inspectable. Leaving deletes your contributions."
+        text="Participation is optional. The schema is public. Your raw packets and the aggregate dataset are inspectable by participants. Leaving deletes your contributions."
       />
       <div className="transparency-grid">
         <section className="panel prose">
@@ -573,17 +708,20 @@ function Transparency() {
             </p>
           </section>
           <section className="panel prose">
-            <h2>Public means inspectable</h2>
+            <h2>Participants see everything</h2>
             <p>
-              The public dataset includes every reporting installation’s latest
-              feature combination and aggregate results, including groups of
-              one. It excludes installation fingerprints, raw signatures and
-              private feedback. Rare combinations can still be distinctive: this
-              is pseudonymous participation, not a promise of anonymity.
+              The aggregate dataset includes every reporting installation’s
+              latest feature combination and results, including groups of one.
+              It excludes installation fingerprints, raw signatures and private
+              feedback. Rare combinations can still be distinctive: this is
+              pseudonymous participation, not a promise of anonymity.
             </p>
             <p>
-              Your lookup hash grants access to all accepted raw packets while
-              you participate. Keep it private.
+              That is why the numbers are not published anonymously. Your
+              lookup hash unlocks the dashboard, the dataset export and all of
+              your accepted raw packets while you participate. Keep it private.
+              The schema, the rules, feature requests and testimonials stay
+              public.
             </p>
           </section>
           <section className="panel prose">
@@ -838,8 +976,14 @@ function Brand() {
 function App() {
   const [route, setRoute] = useState(location.pathname);
   const [token, setToken] = useState("");
+  const [hash, setHash] = useState("");
   const [sessionError, setSessionError] = useState(false);
   setRouteGlobal = setRoute;
+  const credential = token || hash;
+  const signOut = () => {
+    setToken("");
+    setHash("");
+  };
   useEffect(() => {
     const connect = new URLSearchParams(location.hash.slice(1)).get("connect");
     if (connect) {
@@ -878,6 +1022,11 @@ function App() {
           <a className="textlink" href={SITE}>
             picpeak.app
           </a>
+          {credential && (
+            <button className="btn quiet nav-signout" onClick={signOut}>
+              Sign out
+            </button>
+          )}
         </nav>
       </header>
       <main id="main">
@@ -888,9 +1037,16 @@ function App() {
           </div>
         )}
         {route === "/" ? (
-          <Overview />
+          <Overview
+            credential={credential}
+            unlock={setHash}
+            expire={() => {
+              signOut();
+              setSessionError(true);
+            }}
+          />
         ) : route === "/packets" ? (
-          <Packets />
+          <Packets hash={hash} unlock={setHash} />
         ) : route === "/requests" ? (
           <Requests
             token={token}
@@ -913,7 +1069,7 @@ function App() {
       </main>
       <footer>
         <div className="wrap">
-          <p>PicPeak Usage · MIT license · Open data, no visitor tracking</p>
+          <p>PicPeak Usage · MIT license · Opt-in, no visitor tracking</p>
           <nav aria-label="Footer">
             {NAV.map(([href, label]) => (
               <a

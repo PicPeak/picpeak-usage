@@ -57,7 +57,7 @@ const send = (c, identity, action, sequence, payload, now) =>
 const rejects = (promise, code) =>
   assert.rejects(promise, (error) => error.code === code);
 
-test("register, signed report, exact raw export, public projections and idempotent re-signing", async (t) => {
+test("register, signed report, exact raw export, participant-only projections and idempotent re-signing", async (t) => {
   const { c, app, clock } = await setup(t);
   const { identity } = await register(c, clock.value);
   const packet = p.makePacket(
@@ -84,8 +84,21 @@ test("register, signed report, exact raw export, public projections and idempote
   assert.equal(publicData.records.length, 1);
   assert.ok(!JSON.stringify(publicData).includes(identity.installation_id));
   assert.ok(!JSON.stringify(publicData).includes(identity.public_key));
+  // Aggregates are never anonymous: no public route, 401 without proof.
+  await request(app).get("/api/public/summary").expect(404);
+  await request(app).get("/api/participant/summary").expect(401);
+  await request(app)
+    .get("/api/participant/summary")
+    .set("Authorization", `Bearer ${"f".repeat(64)}`)
+    .expect(401);
+  const viaHash = await request(app)
+    .get("/api/participant/summary")
+    .set("Authorization", `Bearer ${identity.installation_id}`)
+    .expect(200);
+  assert.equal(viaHash.body.installations, 1);
   const exported = await request(app)
-    .get("/api/public/export")
+    .get("/api/participant/export")
+    .set("Authorization", `Bearer ${identity.installation_id}`)
     .buffer(true)
     .parse((res, done) => {
       let body = "";

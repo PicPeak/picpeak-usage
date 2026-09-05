@@ -100,11 +100,16 @@ portal requests never set markers or cause reports.
 
 ## Inspection, publication, and deletion
 
-- `/api/public/summary`: latest adoption/version/layout distributions and daily
-  history. Opt-out removes historical contributions too.
-- `/api/public/dataset`: every latest feature projection without identity or
-  signature, in pages of 200. `/api/public/export` downloads all as NDJSON.
-  No minimum bucket size or suppression applies.
+- Aggregate data is available to participants only, never anonymously. The
+  reader credential is `Authorization: Bearer <lookup hash>` of a registered
+  installation or a live voting session token.
+- `/api/participant/summary`: latest adoption/version/layout distributions and
+  daily history. Opt-out removes historical contributions too.
+- `/api/participant/dataset`: every latest feature projection without identity
+  or signature, in pages of 200. `/api/participant/export` downloads all as
+  NDJSON. No minimum bucket size or suppression applies.
+- Public without credentials: schema, source archive, published feature requests
+  and testimonials, and the transparency documentation.
 - `POST /api/participant/lookup` with `installation_id`: all accepted raw report
   envelopes, received time, and signature-verification status. Hash is a private
   read credential, never a URL parameter or a public dataset field.

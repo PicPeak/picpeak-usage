@@ -84,7 +84,14 @@ function createApp({
   if (!disableRateLimit) {
     app.use("/api", makeLimiter(1000));
     app.use(
-      ["/api/envelopes", "/api/participant/lookup", "/api/maintainer"],
+      [
+        "/api/envelopes",
+        "/api/participant/lookup",
+        "/api/participant/summary",
+        "/api/participant/dataset",
+        "/api/participant/export",
+        "/api/maintainer",
+      ],
       makeLimiter(120),
     );
   }
@@ -101,12 +108,21 @@ function createApp({
     "/api/envelopes",
     wrap(async (req, res) => res.json(await collector.receive(req.body))),
   );
+  // Aggregate data is for participants (#1110): a lookup hash or a voting
+  // session proves participation. Nothing aggregate is served anonymously.
+  const reader = wrap(async (req, _res) => {
+    await collector.reader(bearer(req));
+  });
+  const readerGuard = (req, res, next) =>
+    reader(req, res).then(() => next(), next);
   app.get(
-    "/api/public/summary",
+    "/api/participant/summary",
+    readerGuard,
     wrap(async (_req, res) => res.json(await collector.summary())),
   );
   app.get(
-    "/api/public/dataset",
+    "/api/participant/dataset",
+    readerGuard,
     wrap(async (req, res) => {
       const offset = Number(req.query.offset || 0);
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000)
@@ -115,7 +131,8 @@ function createApp({
     }),
   );
   app.get(
-    "/api/public/export",
+    "/api/participant/export",
+    readerGuard,
     wrap(async (req, res) => {
       res
         .type("application/x-ndjson")

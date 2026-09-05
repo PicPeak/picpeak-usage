@@ -53,15 +53,29 @@ export function stamp(iso: string) {
   const s = d.toISOString();
   return `${s.slice(0, 10)} ${s.slice(11, 16)} UTC`;
 }
-export function download(value: unknown, name: string) {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }),
-  );
+/** Authenticated file download: fetch with the bearer credential, then save. */
+export async function downloadWith(path: string, token: string, name: string) {
+  const response = await fetch(path, {
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  });
+  if (!response.ok) throw new Error("REQUEST_FAILED");
+  saveBlob(await response.blob(), name);
+}
+function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
   a.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export function download(value: unknown, name: string) {
+  saveBlob(
+    new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }),
+    name,
+  );
 }
 export const featureNames: Record<string, string> = {
   crm: "Client management",
