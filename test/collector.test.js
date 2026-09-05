@@ -30,7 +30,7 @@ function report(now, features = {}) {
     features: Object.fromEntries(
       p.FEATURE_KEYS.map((key) => [
         key,
-        { configured: false, used: false, ...features[key] },
+        { ...p.emptyFeatures()[key], ...features[key] },
       ]),
     ),
     gallery_layouts: ["grid"],
@@ -39,7 +39,7 @@ function report(now, features = {}) {
 async function register(c, now) {
   const identity = p.generateIdentity();
   const packet = p.makePacket(identity, "register", 0, {
-    consent_version: "usage-consent.v1",
+    consent_version: "usage-consent.v2",
   });
   const receipt = await c.receive(
     p.signPacket(packet, identity, new Date(now)),
@@ -110,7 +110,7 @@ test("register, signed report, exact raw export, participant-only projections an
     })
     .expect(200);
   assert.equal(exported.body.trim().split("\n").length, 1);
-  assert.deepEqual(JSON.parse(exported.body.trim()), packet.payload);
+  assert.deepEqual(JSON.parse(exported.body.trim()), { schema_version: packet.schema_version, ...packet.payload });
 });
 
 test("reject tampering, unknown fields, forged ownership, stale signatures and duplicate identities", async (t) => {
@@ -145,7 +145,7 @@ test("reject tampering, unknown fields, forged ownership, stale signatures and d
       identity,
       "register",
       0,
-      { consent_version: "usage-consent.v1" },
+      { consent_version: "usage-consent.v2" },
       clock.value,
     ),
     "IDENTITY_CONFLICT",

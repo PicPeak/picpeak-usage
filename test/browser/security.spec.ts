@@ -25,7 +25,7 @@ const test = base.extend<{ collector: any }>({
           identity,
         ),
       );
-    await send("register", 0, { consent_version: "usage-consent.v1" });
+    await send("register", 0, { consent_version: "usage-consent.v2" });
     const iso = new Date().toISOString();
     await send("report", 1, {
       picpeak_version: "1.2.3",
@@ -35,7 +35,7 @@ const test = base.extend<{ collector: any }>({
       features: Object.fromEntries(
         p.FEATURE_KEYS.map((key: string) => [
           key,
-          { configured: false, used: false },
+          p.emptyFeatures()[key],
         ]),
       ),
     });
@@ -79,6 +79,28 @@ async function unlock(page: Page, collector: any) {
     page.getByRole("heading", { name: "What’s being used" }),
   ).toBeVisible();
 }
+
+test('all v2 definitions are public in EN/DE and config-only use is never shown as zero adoption', async ({ page, collector }) => {
+  await page.goto(`${collector.url}/transparency`);
+  const catalog = page.locator('#feature-catalog');
+  await expect(catalog.locator('details')).toHaveCount(73);
+  await catalog.getByLabel('Language / Sprache').selectOption('de');
+  await expect(catalog.getByRole('heading')).toHaveText('Alle 73 Funktionssignale');
+  await catalog.getByRole('searchbox').fill('gallery_feedback_likes');
+  await expect(catalog.locator('details')).toHaveCount(1);
+  await catalog.locator('summary').click();
+  await expect(catalog).toContainText('tatsächliche Nutzung wird nicht erfasst');
+  await unlock(page, collector);
+  await page.getByPlaceholder('Search features…').fill('gallery_guest_uploads');
+  await expect(page.locator('.feature-row')).toHaveCount(1);
+  await expect(page.locator('.feature-row')).toContainText('Not collected');
+  await expect(page.getByRole('meter')).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('configured');
+  await expect(page.locator('.feature-row')).toContainText('0 / 1 reported');
+  await expect(page.getByRole('meter')).toHaveCount(1);
+  await page.getByPlaceholder('Search features…').fill('OAuth');
+  await expect(page.getByRole('meter')).toHaveCount(1);
+});
 async function holdResponse(page: Page, pattern: string) {
   let release!: () => void, ready!: () => void, done!: () => void;
   const gate = new Promise<void>((resolve) => {

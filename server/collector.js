@@ -7,6 +7,8 @@ const {
   ProtocolError,
   MAX_AGE_MS,
   FEATURE_KEYS,
+  CURRENT_SCHEMA_VERSION,
+  CURRENT_CONSENT_VERSION,
 } = require("../protocol/protocol.cjs");
 const SESSION_MS = 15 * 60 * 1000;
 const { readSnapshot } = require("./database");
@@ -168,6 +170,7 @@ class Collector {
               id,
               public_key: envelope.public_key,
               sequence: 0,
+              consent_version: packet.payload.consent_version,
             });
           } else {
             const updated = await tx("installations")
@@ -182,6 +185,9 @@ class Collector {
             expires_at: now + MAX_AGE_MS * 2,
           });
           if (packet.action === "report") {
+            if (packet.schema_version === CURRENT_SCHEMA_VERSION &&
+                installation.consent_version !== CURRENT_CONSENT_VERSION)
+              throw new ProtocolError("CONSENT_REQUIRED", 409);
             // One current daily report plus one delayed report per receiving day.
             await this.checkQuota(tx, id, "report", 2, now);
             if (
@@ -211,12 +217,20 @@ class Collector {
                 .insert({
                   installation_id: id,
                   report_date: packet.payload.report_date,
-                  projection: JSON.stringify(packet.payload),
+                  projection: JSON.stringify({ schema_version: packet.schema_version, ...packet.payload }),
                 })
                 .onConflict("installation_id")
                 .merge();
             }
             await this.bumpRevision(tx);
+          }
+          if (packet.action === "consent") {
+            if (installation.consent_version === CURRENT_CONSENT_VERSION)
+              throw new ProtocolError("CONSENT_ALREADY_CURRENT", 409);
+            await this.checkQuota(tx, id, "consent", 1, now);
+            await tx("installations").where({ id }).update({
+              consent_version: CURRENT_CONSENT_VERSION,
+            });
           }
           if (packet.action === "feedback") {
             await this.checkQuota(tx, id, "feedback", 10, now);
@@ -545,8 +559,9 @@ class Collector {
   async computeSummary(db = this.db) {
     const versions = {};
     const layouts = {};
+    const schemaVersions = {};
     const features = Object.fromEntries(
-      FEATURE_KEYS.map((key) => [key, { configured: 0, used: 0 }]),
+      FEATURE_KEYS.map((key) => [key, { configured: 0, used: 0, reported: 0, used_reported: 0 }]),
     );
     let after = "";
     let installations = 0;
@@ -560,11 +575,21 @@ class Collector {
       installations += rows.length;
       for (const row of rows) {
         const report = JSON.parse(row.projection);
+        const schemaVersion = report.schema_version || "usage.v1";
+        schemaVersions[schemaVersion] = (schemaVersions[schemaVersion] || 0) + 1;
         versions[report.picpeak_version] =
           (versions[report.picpeak_version] || 0) + 1;
         for (const key of FEATURE_KEYS) {
-          features[key].configured += Number(report.features[key].configured);
-          features[key].used += Number(report.features[key].used);
+          const signal = report.features[key];
+          // An older schema did not ask this question. Absence is NOT false.
+          if (typeof signal?.configured === "boolean") {
+            features[key].configured += Number(signal.configured);
+            features[key].reported++;
+          }
+          if (typeof signal?.used === "boolean") {
+            features[key].used += Number(signal.used);
+            features[key].used_reported++;
+          }
         }
         for (const layout of report.gallery_layouts)
           layouts[layout] = (layouts[layout] || 0) + 1;
@@ -577,7 +602,8 @@ class Collector {
       .groupBy("report_date")
       .orderBy("report_date", "asc");
     return {
-      schema_version: "usage.v1",
+      schema_version: CURRENT_SCHEMA_VERSION,
+      schema_versions: schemaVersions,
       installations,
       features,
       versions,
@@ -596,7 +622,7 @@ class Collector {
       .offset(offset)
       .limit(limit + 1);
     return {
-      records: rows.slice(0, limit).map((r) => JSON.parse(r.projection)),
+      records: rows.slice(0, limit).map((r) => ({ schema_version: "usage.v1", ...JSON.parse(r.projection) })),
       next: rows.length > limit ? offset + limit : null,
     };
   }

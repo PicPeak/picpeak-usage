@@ -1,4 +1,4 @@
-# usage.v1 protocol
+# Versioned usage protocol (usage.v1 / usage.v2)
 
 Implements the backend-signs/backend-sends decision in
 [#1110's transport follow-up](https://github.com/PicPeak/picpeak/issues/1110#issuecomment-5367220785).
@@ -7,15 +7,16 @@ Browser transport is not implemented. CORS is not authentication.
 ## Exact envelope
 
 `POST /api/envelopes` accepts at most 16 KiB of uncompressed JSON. The complete
-closed JSON Schema is at `/schema/usage.v1.json`. Unknown fields are rejected at
+closed JSON Schemas are at `/schema/usage.v1.json` and `/schema/usage.v2.json`.
+The bilingual field catalog is at `/schema/features.v2.json`. Unknown fields are rejected at
 every level. No arbitrary attributes or free-form telemetry are supported.
 
 | Field                    | Meaning                                                       |
 | ------------------------ | ------------------------------------------------------------- |
-| `packet.schema_version`  | Literal `usage.v1`                                            |
+| `packet.schema_version`  | Literal `usage.v1` or `usage.v2`; never inferred from payload |
 | `packet.installation_id` | SHA-256 of Ed25519 SPKI public-key DER, lowercase hex         |
 | `packet.packet_id`       | UUIDv4 identifying an immutable operation                     |
-| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session` |
+| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2 also `consent` |
 | `packet.sequence`        | 0 at registration; increments per accepted operation          |
 | `packet.payload`         | Action-specific closed schema, below                          |
 | `public_key`             | Ed25519 SPKI DER, unpadded base64url                          |
@@ -42,7 +43,8 @@ storage binding and diverging sequence detection provide additional safeguards.
 
 ## Actions
 
-- `register`: `consent_version: usage-consent.v1`, with sequence zero. A second
+- `register`: `consent_version: usage-consent.v1` in v1 or `usage-consent.v2` in v2,
+  with sequence zero. A second
   different registration for the same identity conflicts.
 - `report`: `picpeak_version`, `report_date`, `generated_at`, `features`, and
   `gallery_layouts`. Dates are UTC. Version accepts release versions and
@@ -72,7 +74,36 @@ changes, and 100 portal vote changes. Transport and global registration limits
 provide additional abuse controls. Signatures prevent impersonating another
 installation; they cannot attest that a self-hosted client runs unmodified code.
 
-## Every feature signal
+## v2 features and explicit consent upgrades
+
+The [complete feature catalog and coverage matrix](FEATURE_COVERAGE.md) documents
+every one of the 73 capabilities, its source, meaning and exclusions. v2 has
+56 configured/used pairs plus 17 configuration-only booleans; those objects
+forbid `used`. v1 remains unchanged with its 19 pairs. No new counters, free-form
+values or visitor observations. Both applications ship identical catalogs.
+
+`consent` is a v2-only signed command with exactly
+`{ "consent_version": "usage-consent.v2" }`. It upgrades an existing v1
+installation, never another identity, and is limited to one accepted upgrade
+(at most one per day). Same-packet retries return the original receipt; a second
+distinct upgrade returns CONSENT_ALREADY_CURRENT. A v2 report without stored
+v2 consent returns CONSENT_REQUIRED, without advancing sequence or storing data.
+Old v1 envelopes remain accepted/exportable, including delayed v1 reports.
+
+Client acknowledgement atomically starts the expanded observation period and
+clears old local markers. Until confirmed, only v1 markers/fields are collected.
+An upgrade does not bypass the one-report-per-UTC-day rule. Opt-out always wins,
+including lost receipts and in-flight consent responses. Identity and accepted
+raw history are unchanged by upgrading. See OPERATIONS.md for deployment order.
+
+Aggregate records now explicitly include their originating `schema_version`;
+legacy projections lacking it are returned as v1. Missing fields stay absent.
+Summary entries have `configured`, `used`, `reported`, `used_reported` counts.
+Divide configured by reported, used by used_reported; denominator zero means
+not collected, not 0%. `schema_versions` counts the latest reports by schema.
+This avoids interpreting non-consenting v1 installations as not using v2 features.
+
+## Legacy v1 feature signals
 
 All features have `configured` and `used` booleans. Used is monotonic since the
 current participation began. Opt-out clears all local markers.

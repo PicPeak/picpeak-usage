@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRequestScope } from "./useRequestScope";
+import { FeatureCatalog } from "./FeatureCatalog";
 import { createRoot } from "react-dom/client";
 import {
   api,
@@ -244,7 +245,7 @@ function Overview({
     );
   const entries = Object.entries(data.features)
     .filter(([key]) =>
-      (featureNames[key] || key).toLowerCase().includes(search.toLowerCase()),
+      `${key} ${featureNames[key] || ''}`.toLowerCase().includes(search.toLowerCase()),
     )
     .sort((a, b) => b[1][metric] - a[1][metric]);
   const reports = data.history.reduce((sum, row) => sum + row.reports, 0);
@@ -271,7 +272,7 @@ function Overview({
           <li>
             <span className="label">Documented capabilities</span>
             <strong>{Object.keys(data.features).length}</strong>
-            <small>Configured and used as yes/no, never click counts</small>
+            <small>Configuration / general capability use, never click counts</small>
           </li>
         </ul>
       </section>
@@ -304,29 +305,31 @@ function Overview({
                 value={metric}
                 onChange={(e) => setMetric(e.target.value as typeof metric)}
               >
-                <option value="used">Used since joining</option>
+                <option value="used">Used since schema consent</option>
                 <option value="configured">Currently configured</option>
               </select>
             </label>
           </div>
           <p className="caption">
-            Share of {data.installations} reporting installations · includes
-            groups of one
+            Percentages use only installations reporting this field, including groups of one.
+            Older schemas are unknown for new fields, not unused. Configuration-only signals never observe actual use.
           </p>
           <div className="feature-list">
             {entries.map(([key, value]) => {
-              const percent = data.installations
-                ? Math.round((value[metric] / data.installations) * 100)
+              const denominator = metric === "used" ? value.used_reported : value.reported;
+              const percent = denominator
+                ? Math.round((value[metric] / denominator) * 100)
                 : 0;
               return (
                 <article className="feature-row" key={key}>
                   <div>
                     <span>{featureNames[key] || key}</span>
                     <strong>
-                      {percent}%<small>({value[metric]})</small>
+                      {denominator ? `${percent}%` : "Not collected"}
+                      <small>({value[metric]} / {denominator} reported)</small>
                     </strong>
                   </div>
-                  <div
+                  {denominator > 0 && <div
                     className="bar"
                     role="meter"
                     aria-label={featureNames[key] || key}
@@ -335,7 +338,7 @@ function Overview({
                     aria-valuemax={100}
                   >
                     <span style={{ width: `${percent}%` }} />
-                  </div>
+                  </div>}
                 </article>
               );
             })}
@@ -785,23 +788,22 @@ function Transparency() {
           </p>
           <p>
             Configured means the capability is enabled or has relevant
-            configuration. Used means an allowlisted successful admin operation
-            has been observed since joining. It is a yes/no signal, never a
-            frequency. The schema’s feature names:
+            configuration; built-in capabilities mean available, not used.
+            Used means an allowlisted successful admin capability operation
+            since consent to the current schema. v1 measures since joining;
+            explicitly upgrading to v2 restarts local markers. It is a yes/no signal,
+            never a frequency. Configuration-only fields omit used entirely.
           </p>
-          <ul>
-            {Object.values(featureNames).map((name) => (
-              <li key={name}>{name}</li>
-            ))}
-          </ul>
+          <p>Both schema versions remain supported. Existing participants stay on v1
+            until they explicitly consent to v2 in PicPeak. The full catalog below
+            explains all 73 fields, including the original 19.</p>
           <p>
             Layouts: grid, masonry, carousel, timeline, mosaic, gallery-premium,
             gallery-story, or other. We never include the number of galleries
             using them.
           </p>
-          <a className="btn" href="/schema/usage.v1.json">
-            Read the exact JSON schema
-          </a>
+          <a className="btn" href="/schema/usage.v2.json">JSON schema: usage.v2</a>{" "}
+          <a className="btn" href="/schema/usage.v1.json">Legacy schema: usage.v1</a>
         </section>
         <div className="side-panels">
           <section className="panel prose">
@@ -854,6 +856,7 @@ function Transparency() {
           </section>
         </div>
       </div>
+      <FeatureCatalog />
       <section className="prose-columns">
         <div className="prose">
           <h2>Feedback has separate consent</h2>

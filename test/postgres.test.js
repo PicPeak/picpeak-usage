@@ -19,7 +19,7 @@ test(
       c.receive(p.signPacket(packet, identity, new Date(now)));
     await send(
       p.makePacket(identity, "register", 0, {
-        consent_version: "usage-consent.v1",
+        consent_version: "usage-consent.v2",
       }),
     );
     const iso = new Date(now).toISOString();
@@ -30,7 +30,7 @@ test(
       features: Object.fromEntries(
         p.FEATURE_KEYS.map((k) => [
           k,
-          { configured: k === "crm", used: k === "crm" },
+          { configured: k === "crm", ...(p.observesUse(k) ? { used: k === "crm" } : {}) },
         ]),
       ),
       gallery_layouts: ["grid"],

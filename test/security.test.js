@@ -51,7 +51,7 @@ async function fixture(t, engine, options = {}) {
   const register = async () => {
     const identity = p.generateIdentity();
     await send(identity, "register", 0, {
-      consent_version: "usage-consent.v1",
+      consent_version: "usage-consent.v2",
     });
     return identity;
   };
@@ -61,7 +61,7 @@ async function fixture(t, engine, options = {}) {
     generated_at: new Date(clock.now).toISOString(),
     gallery_layouts: ["grid"],
     features: Object.fromEntries(
-      p.FEATURE_KEYS.map((key) => [key, { configured: false, used: false }]),
+      Object.entries(p.emptyFeatures()),
     ),
   });
   return { db, c, app, clock, config, sign, send, register, report };

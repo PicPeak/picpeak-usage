@@ -38,6 +38,12 @@ async function migrate(db) {
       t.bigInteger("sequence").notNullable().defaultTo(0);
       t.timestamp("created_at").notNullable().defaultTo(db.fn.now());
     });
+  // Old registrations keep their original consent. No migration silently
+  // authorizes the larger v2 feature allowlist.
+  if (!(await db.schema.hasColumn("installations", "consent_version")))
+    await db.schema.alterTable("installations", (t) => {
+      t.string("consent_version", 40).notNullable().defaultTo("usage-consent.v1");
+    });
   if (!(await db.schema.hasTable("operations")))
     await db.schema.createTable("operations", (t) => {
       t.string("packet_id", 36).primary();

@@ -92,7 +92,7 @@ async function main() {
       assert.equal(response.status, 200, await response.clone().text());
       return response.json();
     };
-    await send("register", 0, { consent_version: "usage-consent.v1" });
+    await send("register", 0, { consent_version: "usage-consent.v2" });
     const now = new Date().toISOString();
     await send("report", 1, {
       picpeak_version: "1.0.0",
@@ -100,7 +100,7 @@ async function main() {
       generated_at: now,
       gallery_layouts: ["grid"],
       features: Object.fromEntries(
-        p.FEATURE_KEYS.map((key) => [key, { configured: false, used: false }]),
+        Object.entries(p.emptyFeatures()),
       ),
     });
     const session = await send("session", 2);

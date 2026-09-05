@@ -98,7 +98,7 @@ receipt copies once. Participants reconnect from PicPeak; reports/feedback remai
 
 | Data | Retention / deletion |
 | --- | --- |
-| `installations` identity/public key/sequence | While participating; removed on opt-out |
+| `installations` identity/public key/sequence/consent_version | While participating; removed on opt-out |
 | `reports` first accepted signed envelopes + received time | Every logical usage report while participating; removed on opt-out |
 | `snapshots` latest projection + aggregate cache | Current participation only; shared revision invalidates cache after committed deletion |
 | `feedback`, names and consent/moderation state; `votes` | Separate from telemetry; removed on the author's opt-out, and votes on deleted items also removed |
@@ -152,6 +152,28 @@ deployed source even without a remote Git repository.
 Protocol changes need a new schema version and synchronized PicPeak/collector
 copies. Run integration and PostgreSQL tests and both frontend builds. Deploy
 collector support before distributing clients that require a new schema.
+
+### usage.v2 rollout
+
+Migrate/deploy the collector before the PicPeak client. The guarded collector
+migration adds consent_version defaulting to usage-consent.v1, preserving existing
+participants. PicPeak migration 205 does the same locally. Never backfill v2
+consent from an existing registration, config, feature marker or UI visit.
+The explicit signed consent action is required for the wider scope; until its
+matching acknowledgement the client records only v1 signals. Repeat migration
+is safe; coordinate migrations before starting multiple replicas as above.
+
+v1 packets remain valid and raw history remains unchanged. Legacy aggregate
+projections are read as schema_version usage.v1 without fabricating new fields.
+Each aggregate metric has its own reported denominator; zero means not collected.
+Both UI disclosures and the downloadable source include the complete bilingual
+catalog and the [coverage/exclusion matrix](FEATURE_COVERAGE.md).
+
+A queued consent on an old/unreachable collector remains pending, not silently
+active. Finish deployment and retry, or opt out to delete. No additional report
+is accepted on the upgrade day if the v1 report for that UTC date was accepted.
+Do not roll back the client to a build unaware of migration 205 after a v2 opt-in;
+retain compatible state/schema support or complete opt-out before rollback.
 
 Run `npm run test:required` with PICPEAK_CHECKOUT and a disposable
 TEST_DATABASE_URL. It requires the real client integration, PostgreSQL checks

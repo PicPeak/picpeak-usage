@@ -7,7 +7,9 @@ const path = require("node:path");
 const { Collector } = require("./collector");
 const { streamExport } = require("./exports");
 const {
-  envelopeSchema,
+  envelopeSchemas,
+  CATALOG,
+  CURRENT_SCHEMA_VERSION,
   MAX_BYTES,
   ProtocolError,
   digest,
@@ -106,10 +108,12 @@ function createApp({
     "/api/health",
     wrap(async (_req, res) => {
       await db("installations").select("id").limit(1);
-      res.json({ status: "ok", schema_version: "usage.v1" });
+      res.json({ status: "ok", schema_version: CURRENT_SCHEMA_VERSION, supported_schemas: Object.keys(envelopeSchemas) });
     }),
   );
-  app.get("/schema/usage.v1.json", (_req, res) => res.json(envelopeSchema));
+  for (const [version, schema] of Object.entries(envelopeSchemas))
+    app.get(`/schema/${version}.json`, (_req, res) => res.json(schema));
+  app.get("/schema/features.v2.json", (_req, res) => res.json(CATALOG));
   app.post(
     "/api/envelopes",
     wrap(async (req, res) => res.json(await collector.receive(req.body))),
