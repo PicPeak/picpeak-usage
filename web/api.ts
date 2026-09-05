@@ -27,6 +27,7 @@ export async function api<T>(
     body?: unknown;
     token?: string;
     signal?: AbortSignal;
+    onPage?: (next: string | null) => void;
   } = {},
 ): Promise<T> {
   const response = await fetch(path, {
@@ -42,6 +43,8 @@ export async function api<T>(
   });
   const value = await response.json();
   if (!response.ok) throw new Error(value.error || "REQUEST_FAILED");
+  options.signal?.throwIfAborted();
+  options.onPage?.(response.headers.get("X-Next-Cursor"));
   return value;
 }
 /** UTC date (YYYY-MM-DD) and timestamp (YYYY-MM-DD HH:MM UTC): the portal
@@ -54,14 +57,22 @@ export function stamp(iso: string) {
   return `${s.slice(0, 10)} ${s.slice(11, 16)} UTC`;
 }
 /** Authenticated file download: fetch with the bearer credential, then save. */
-export async function downloadWith(path: string, token: string, name: string) {
+export async function downloadWith(
+  path: string,
+  token: string,
+  name: string,
+  signal?: AbortSignal,
+) {
   const response = await fetch(path, {
     headers: { Authorization: `Bearer ${token}` },
     credentials: "omit",
     referrerPolicy: "no-referrer",
+    signal,
   });
   if (!response.ok) throw new Error("REQUEST_FAILED");
-  saveBlob(await response.blob(), name);
+  const blob = await response.blob();
+  signal?.throwIfAborted();
+  saveBlob(blob, name);
 }
 function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);

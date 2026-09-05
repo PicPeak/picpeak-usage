@@ -11,3 +11,5 @@ storage/
 .DS_Store
 AGENTS.md
 public/source.tar.gz
+test-results/
+playwright-report/

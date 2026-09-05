@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useRequestScope } from "./useRequestScope";
 import { createRoot } from "react-dom/client";
 import {
   api,
-  download,
   downloadWith,
   featureNames,
   day,
@@ -72,6 +72,7 @@ function AccessForm({
   intro: string;
 }) {
   const [hash, setHash] = useState("");
+  const signal = useRequestScope();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   return (
@@ -82,11 +83,12 @@ function AccessForm({
         className="lookup"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (busy) return;
           const value = hash.trim();
           setBusy(true);
           setError(false);
           try {
-            await api("/api/participant/summary", { token: value });
+            await api("/api/participant/summary", { token: value, signal });
             onUnlock(value);
           } catch {
             setError(true);
@@ -104,6 +106,7 @@ function AccessForm({
             required
             pattern="[a-f0-9]{64}"
             value={hash}
+            disabled={busy}
             onChange={(e) => setHash(e.target.value)}
             placeholder="64 hexadecimal characters"
           />
@@ -135,6 +138,7 @@ function Overview({
   unlock: (hash: string) => void;
   expire: () => void;
 }) {
+  const signal = useRequestScope();
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
@@ -143,7 +147,7 @@ function Overview({
   const load = () => {
     if (!credential) return;
     setError(false);
-    api<Summary>("/api/participant/summary", { token: credential })
+    api<Summary>("/api/participant/summary", { token: credential, signal })
       .then(setData)
       .catch((error) => {
         if (error.message === "PARTICIPANT_AUTH_REQUIRED") expire();
@@ -249,7 +253,11 @@ function Overview({
     <>
       <section className="hero">
         {hero}
-        <ul className="stats rise" style={delay(120)} aria-label="Participation summary">
+        <ul
+          className="stats rise"
+          style={delay(120)}
+          aria-label="Participation summary"
+        >
           <li>
             <span className="label">Reporting installations</span>
             <strong>{data.installations.toLocaleString("en")}</strong>
@@ -372,8 +380,9 @@ function Overview({
             <p className="eyebrow">Participant dataset</p>
             <h2>See the whole picture.</h2>
             <p>
-              Every feature combination is included, including groups of one.
-              No installation hashes or signing keys are exposed.
+              Every feature combination is included, including groups of one. No
+              installation hashes or signing keys are exposed. The full export
+              is a consistent snapshot at its start time.
             </p>
             <button
               className="btn primary"
@@ -382,6 +391,7 @@ function Overview({
                   "/api/participant/export",
                   credential,
                   "picpeak-usage-dataset.ndjson",
+                  signal,
                 ).catch(() => setError(true))
               }
             >
@@ -392,6 +402,7 @@ function Overview({
               onClick={() =>
                 api<{ records: unknown[] }>("/api/participant/dataset", {
                   token: credential,
+                  signal,
                 })
                   .then((v) => setRecords(v.records))
                   .catch(() => setError(true))
@@ -448,6 +459,7 @@ function Packets({
   hash: string;
   unlock: (hash: string) => void;
 }) {
+  const signal = useRequestScope();
   const [result, setResult] = useState<{
     installation_id: string;
     packets: {
@@ -455,27 +467,49 @@ function Packets({
       received_at: string;
       signature_verified: boolean;
     }[];
+    next: string | null;
+    revision: string;
   } | null>(null);
   const [error, setError] = useState(false);
-  useEffect(() => {
-    if (!hash) {
-      setResult(null);
-      return;
-    }
+  const [busy, setBusy] = useState(false);
+  const load = async (after?: string) => {
+    if (!hash) return;
+    setBusy(true);
     setError(false);
-    api<typeof result>("/api/participant/lookup", {
-      method: "POST",
-      body: { installation_id: hash },
-    })
-      .then(setResult)
-      .catch(() => setError(true));
+    try {
+      const value = await api<NonNullable<typeof result>>(
+        "/api/participant/packets",
+        {
+          method: "POST",
+          signal,
+          body: {
+            installation_id: hash,
+            ...(after ? { after, revision: result?.revision } : {}),
+          },
+        },
+      );
+      if (!signal.aborted && value.installation_id === hash)
+        setResult((previous) =>
+          after && previous
+            ? { ...value, packets: [...previous.packets, ...value.packets] }
+            : value,
+        );
+    } catch {
+      if (!signal.aborted) setError(true);
+    } finally {
+      if (!signal.aborted) setBusy(false);
+    }
+  };
+  useEffect(() => {
+    setResult(null);
+    void load();
   }, [hash]);
   return (
     <>
       <PageHeading
         eyebrow="Nothing hidden"
         title="Your data, exactly as received."
-        text="Inspect and download every accepted packet your installation has sent. The lookup hash gives read-only access; it cannot submit reports, vote, or delete data."
+        text="Inspect each unique accepted usage report, exactly as first received. Transport retries are deduplicated; rejected attempts and separate feedback are not usage reports. The private lookup hash is read-only."
       />
       {!hash && (
         <AccessForm
@@ -494,25 +528,42 @@ function Packets({
         <p className="notice error" role="alert">
           No accessible installation was found, or the service is unavailable.
           Deleted identities no longer have access.
+          <button className="btn" onClick={() => void load()} disabled={busy}>
+            Reload reports
+          </button>
         </p>
       )}
-      {result && (
+      {hash && result?.installation_id === hash && (
         <section className="panel section">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Accepted packets</p>
+              <p className="eyebrow">Accepted usage reports</p>
               <h2>
                 {result.packets.length}{" "}
-                {result.packets.length === 1 ? "packet" : "packets"} on record
+                {result.packets.length === 1 ? "report" : "reports"} shown
               </h2>
             </div>
             <button
               className="btn"
-              onClick={() => download(result, "picpeak-usage-packets.json")}
+              disabled={busy}
+              onClick={() =>
+                void downloadWith(
+                  "/api/participant/raw-export",
+                  hash,
+                  "picpeak-usage-packets.json",
+                  signal,
+                ).catch(() => {
+                  if (!signal.aborted) setError(true);
+                })
+              }
             >
               Download all as JSON
             </button>
           </div>
+          <p className="caption">
+            The full download includes all accepted usage reports and a dated
+            export receipt. Keep that file as your private audit record.
+          </p>
           {result.packets.map((packet, index) => (
             <details key={index}>
               <summary>
@@ -526,6 +577,15 @@ function Packets({
               <pre>{JSON.stringify(packet, null, 2)}</pre>
             </details>
           ))}
+          {result.next && (
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => void load(result.next!)}
+            >
+              Load more reports
+            </button>
+          )}
           {!result.packets.length && (
             <p className="muted small" style={{ marginTop: "1rem" }}>
               The installation is registered. Its first daily report has not
@@ -539,28 +599,57 @@ function Packets({
 }
 
 function Requests({ token, expire }: { token: string; expire: () => void }) {
+  const signal = useRequestScope();
   const [items, setItems] = useState<Feedback[] | null>(null);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState("");
   const [testimonials, setTestimonials] = useState<Feedback[]>([]);
-  const load = () => {
+  const [next, setNext] = useState<string | null>(null);
+  const [testimonialNext, setTestimonialNext] = useState<string | null>(null);
+  const load = (after = "") => {
     setError(false);
     (token
-      ? api<{ requests: Feedback[] }>("/api/participant/session", {
-          token,
-        }).then((v) => v.requests)
-      : api<Feedback[]>("/api/public/requests")
+      ? api<{ requests: Feedback[]; next: string | null }>(
+          `/api/participant/session${after ? `?after=${after}` : ""}`,
+          {
+            token,
+            signal,
+          },
+        ).then((v) => {
+          setNext(v.next);
+          return v.requests;
+        })
+      : api<Feedback[]>(
+          `/api/public/requests${after ? `?after=${after}` : ""}`,
+          { signal, onPage: setNext },
+        )
     )
-      .then(setItems)
+      .then((value) =>
+        setItems((previous) =>
+          after ? [...(previous || []), ...value] : value,
+        ),
+      )
       .catch((error) => {
         if (token && error.message === "PARTICIPANT_AUTH_REQUIRED") expire();
         else setError(true);
       });
-    api<Feedback[]>("/api/public/testimonials")
-      .then(setTestimonials)
+  };
+  const loadTestimonials = (after = "") => {
+    api<Feedback[]>(
+      `/api/public/testimonials${after ? `?after=${after}` : ""}`,
+      { signal, onPage: setTestimonialNext },
+    )
+      .then((value) =>
+        setTestimonials((previous) =>
+          after ? [...previous, ...value] : value,
+        ),
+      )
       .catch(() => setError(true));
   };
-  useEffect(load, [token]);
+  useEffect(() => {
+    load();
+    loadTestimonials();
+  }, [token]);
   return (
     <>
       <PageHeading
@@ -571,8 +660,8 @@ function Requests({ token, expire }: { token: string; expire: () => void }) {
       <div className="notice">
         {token ? (
           <>
-            <strong>You are connected for voting.</strong> Your session lasts
-            15 minutes; opting out revokes it immediately.
+            <strong>You are connected for voting.</strong> Your session lasts 15
+            minutes; opting out revokes it immediately.
           </>
         ) : (
           <>
@@ -584,7 +673,14 @@ function Requests({ token, expire }: { token: string; expire: () => void }) {
         New requests and private feedback are submitted from the same PicPeak
         settings page.
       </div>
-      {error && <Failure retry={load} />}
+      {error && (
+        <Failure
+          retry={() => {
+            load();
+            loadTestimonials();
+          }}
+        />
+      )}
       {!items && !error && (
         <p className="muted" role="status">
           Loading requests…
@@ -605,6 +701,7 @@ function Requests({ token, expire }: { token: string; expire: () => void }) {
                     method: "PUT",
                     body: { voted: !item.voted },
                     token,
+                    signal,
                   });
                   load();
                 } catch {
@@ -630,6 +727,11 @@ function Requests({ token, expire }: { token: string; expire: () => void }) {
           </article>
         ))}
       </div>
+      {next && (
+        <button className="btn" onClick={() => load(next)}>
+          Load more requests
+        </button>
+      )}
       {items?.length === 0 && (
         <div className="panel empty">
           <h2>Room for your next idea.</h2>
@@ -650,6 +752,14 @@ function Requests({ token, expire }: { token: string; expire: () => void }) {
               <cite>{item.name || "Anonymous participant"}</cite>
             </blockquote>
           ))}
+          {testimonialNext && (
+            <button
+              className="btn"
+              onClick={() => loadTestimonials(testimonialNext)}
+            >
+              Load more testimonials
+            </button>
+          )}
         </section>
       )}
     </>
@@ -704,7 +814,8 @@ function Transparency() {
             <p>
               The network sees an address to deliver a request. This application
               does not persist it in analytics or access logs. Abuse controls
-              keep an ephemeral address HMAC in memory for ten minutes.
+              keep an ephemeral address HMAC in memory for ten minutes; IPv6
+              addresses share a /56 network budget before hashing.
             </p>
           </section>
           <section className="panel prose">
@@ -717,11 +828,11 @@ function Transparency() {
               pseudonymous participation, not a promise of anonymity.
             </p>
             <p>
-              That is why the numbers are not published anonymously. Your
-              lookup hash unlocks the dashboard, the dataset export and all of
-              your accepted raw packets while you participate. Keep it private.
-              The schema, the rules, feature requests and testimonials stay
-              public.
+              That is why the numbers are not published anonymously. Your lookup
+              hash unlocks the dashboard, the dataset export and all of your
+              unique accepted usage reports while you participate. Keep it
+              private. The schema, the rules, feature requests and testimonials
+              stay public.
             </p>
           </section>
           <section className="panel prose">
@@ -737,70 +848,178 @@ function Transparency() {
               Only a one-way revocation digest remains to prevent old
               registrations from being replayed. It cannot retrieve a former
               installation’s data. A new opt-in generates a fresh identity.
+              Short-lived global abuse counters contain no installation
+              identity.
             </p>
           </section>
         </div>
       </div>
       <section className="prose-columns">
         <div className="prose">
-        <h2>Feedback has separate consent</h2>
-        <p>
-          Feedback is sent only when you submit it. You choose anonymity or a
-          name per item. Private feedback is maintainer-only; feature requests
-          and testimonials need your publication permission and review. Homepage
-          marketing requires an additional explicit permission. Opt-out removes
-          these items and their votes too.
-        </p>
+          <h2>Feedback has separate consent</h2>
+          <p>
+            Feedback is sent only when you submit it. You choose anonymity or a
+            name per item. Private feedback is maintainer-only; feature requests
+            and testimonials need your publication permission and review.
+            Homepage marketing requires an additional explicit permission.
+            Opt-out removes these items and their votes too.
+          </p>
         </div>
         <div className="prose">
-        <h2>Signing and retention</h2>
-        <p>
-          PicPeak holds the Ed25519 private key on its backend and signs every
-          operation. The collector checks the public-key fingerprint, schema,
-          signature, timestamp, nonce, sequence and packet identity. Re-signed
-          retries of the same packet are idempotent; reused nonces are rejected.
-          Full copies of the same signing identity cannot be distinguished by
-          cryptography alone: registration and sequence conflicts stop reporting
-          and require review.
-        </p>
-        <p>
-          Accepted raw reports are retained throughout active participation.
-          Security nonces expire after ten minutes and voting sessions after
-          fifteen. Deletion removes active data and historical aggregate
-          contributions. Signatures establish key ownership; they cannot attest
-          that a self-hosted client runs unmodified software.
-        </p>
+          <h2>Signing and retention</h2>
+          <p>
+            PicPeak holds the Ed25519 private key on its backend and signs every
+            operation. The collector checks the public-key fingerprint, schema,
+            signature, timestamp, nonce, sequence and packet identity. Re-signed
+            retries of the same packet are idempotent; reused nonces are
+            rejected. Full copies of the same signing identity cannot be
+            distinguished by cryptography alone: registration and sequence
+            conflicts stop reporting and require review.
+          </p>
+          <p>
+            Accepted raw reports are retained throughout active participation.
+            Security nonces expire after ten minutes and voting sessions after
+            fifteen. Cleanup runs at startup, on valid submissions and every
+            minute. Tokens are never stored in operation receipts. Deletion
+            removes active data and historical aggregate contributions.
+            Signatures establish key ownership; they cannot attest that a
+            self-hosted client runs unmodified software.
+          </p>
         </div>
         <div className="prose">
-        <h2>Auditable software</h2>
-        <p>
-          This service is developed as the separate <code>picpeak-usage</code>{" "}
-          application alongside the{" "}
-          <a className="textlink ink" href={PROPOSAL} rel="noreferrer">
-            public PicPeak usage proposal
+          <h2>Auditable software</h2>
+          <p>
+            This service is developed as the separate <code>picpeak-usage</code>{" "}
+            application alongside the{" "}
+            <a className="textlink ink" href={PROPOSAL} rel="noreferrer">
+              public PicPeak usage proposal
+            </a>
+            . The deployment includes the protocol, collector, UI, database
+            migrations, tests, and operator documentation.
+          </p>
+          <a className="btn" href="/source.tar.gz" download>
+            Download this deployment’s source
           </a>
-          . The deployment includes the protocol, collector, UI, database
-          migrations, tests, and operator documentation.
-        </p>
-        <a className="btn" href="/source.tar.gz" download>
-          Download this deployment’s source
-        </a>
         </div>
+      </section>
+      <section className="panel prose section">
+        <h2>Retention and your audit receipts</h2>
+        <p>
+          A report export contains each unique accepted usage report exactly as
+          first received, with a dated receipt and report count. Re-signed
+          transport retries are deduplicated; rejected attempts, registration,
+          session commands and separate feedback are not usage reports. Dataset
+          exports are consistent snapshots at export start. Already downloaded
+          copies cannot be recalled by a later opt-out.
+        </p>
+        <p>
+          Download receipts to keep your own audit trail. PicPeak can show its
+          latest local export receipt and identity-free deletion confirmation;
+          opt-out clears the export receipt and all local identity/key material.
+          The collector does not keep a personal export/access history. Receipts
+          document acknowledgement, not forensic proof of storage erasure.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>How long it remains</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              [
+                "Registration, public key and sequence",
+                "While participating; deleted on opt-out.",
+              ],
+              [
+                "First accepted raw reports",
+                "All logical reports while participating; deleted on opt-out.",
+              ],
+              [
+                "Latest projections and aggregate cache",
+                "While participating; committed deletion invalidates caches across replicas.",
+              ],
+              [
+                "Feedback, names, publication/marketing choices and votes",
+                "Separate from telemetry; deleted on opt-out, including votes on deleted requests.",
+              ],
+              [
+                "Operation IDs, digests, dates and non-secret receipts",
+                "While participating, for retries and quotas; deleted on opt-out. No bearer tokens.",
+              ],
+              [
+                "Voting-session token hashes",
+                "15-minute validity, then the next cleanup cycle; never plaintext tokens.",
+              ],
+              ["Security nonces", "10 minutes, then the next cleanup cycle."],
+              [
+                "Global admission counters",
+                "Current and previous UTC day only, then cleanup; no identity or IP.",
+              ],
+              [
+                "Database revision and migration version",
+                "Constant-size coordination state, with no identity history.",
+              ],
+              [
+                "One-way revocation digests",
+                "Persistent, to prevent old identities being registered again; no lookup access.",
+              ],
+              [
+                "Address HMAC limits",
+                "Process memory for ten-minute windows; no persistent IP, origin or user-agent.",
+              ],
+              [
+                "Audit receipts",
+                "Held by the requester; no central personal audit history. PicPeak keeps only the local latest receipts described above.",
+              ],
+              [
+                "Infrastructure logs and backups",
+                "No app access logger or automatic backup. Operators must disclose any separate backup retention, apply revocations on restore, and avoid payloads/credentials in logs; essential security logs should be kept at most 24 hours.",
+              ],
+            ].map(([data, retention]) => (
+              <tr key={data}>
+                <th scope="row">{data}</th>
+                <td>{retention}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p>
+          Homepage integrations use the marketing-approved testimonial feed,
+          never the general portal testimonial list.
+        </p>
       </section>
     </>
   );
 }
 
 function Maintainer() {
+  const [epoch, setEpoch] = useState(0);
+  return (
+    <MaintainerSession
+      key={epoch}
+      signOut={() => setEpoch((value) => value + 1)}
+    />
+  );
+}
+
+function MaintainerSession({ signOut }: { signOut: () => void }) {
+  const signal = useRequestScope();
   const [token, setToken] = useState("");
   const [items, setItems] = useState<Feedback[] | null>(null);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const load = async () => {
+  const [next, setNext] = useState<string | null>(null);
+  const load = async (after = "") => {
     setError(false);
     setBusy(true);
     try {
-      setItems(await api("/api/maintainer/feedback", { token }));
+      const value = await api<Feedback[]>(
+        `/api/maintainer/feedback${after ? `?after=${after}` : ""}`,
+        { token, signal, onPage: setNext },
+      );
+      setItems((previous) => (after ? [...(previous || []), ...value] : value));
     } catch {
       setError(true);
       setItems(null);
@@ -820,6 +1039,7 @@ function Maintainer() {
           className="panel lookup"
           onSubmit={(e) => {
             e.preventDefault();
+            if (busy) return;
             void load();
           }}
         >
@@ -829,6 +1049,7 @@ function Maintainer() {
               type="password"
               autoComplete="off"
               value={token}
+              disabled={busy}
               onChange={(e) => setToken(e.target.value)}
               required
               minLength={32}
@@ -844,13 +1065,7 @@ function Maintainer() {
           <p className="caption">
             {items.length} {items.length === 1 ? "item" : "items"} in the inbox
           </p>
-          <button
-            className="btn"
-            onClick={() => {
-              setToken("");
-              setItems(null);
-            }}
-          >
+          <button className="btn" onClick={signOut}>
             Sign out
           </button>
         </div>
@@ -869,9 +1084,9 @@ function Maintainer() {
             <h2>{item.title}</h2>
             <p className="preserve">{item.body}</p>
             <p className="caption">
-              {item.name || "Anonymous"} · {day(item.created_at)} ·
-              publication {item.allow_public ? "permitted" : "not permitted"} ·
-              marketing {item.allow_marketing ? "permitted" : "not permitted"}
+              {item.name || "Anonymous"} · {day(item.created_at)} · publication{" "}
+              {item.allow_public ? "permitted" : "not permitted"} · marketing{" "}
+              {item.allow_marketing ? "permitted" : "not permitted"}
             </p>
             <div className="moderation-controls">
               <label>
@@ -932,6 +1147,7 @@ function Maintainer() {
                         status: item.status,
                       },
                       token,
+                      signal,
                     });
                     await load();
                   } catch {
@@ -947,6 +1163,11 @@ function Maintainer() {
           </article>
         ))}
       </div>
+      {next && (
+        <button className="btn" disabled={busy} onClick={() => void load(next)}>
+          Load more feedback
+        </button>
+      )}
     </>
   );
 }
@@ -978,17 +1199,29 @@ function App() {
   const [token, setToken] = useState("");
   const [hash, setHash] = useState("");
   const [sessionError, setSessionError] = useState(false);
+  const connecting = useRef<AbortController | null>(null);
   setRouteGlobal = setRoute;
   const credential = token || hash;
   const signOut = () => {
+    connecting.current?.abort();
     setToken("");
     setHash("");
+  };
+  const unlock = (value: string) => {
+    connecting.current?.abort();
+    setToken("");
+    setHash(value);
+    setSessionError(false);
   };
   useEffect(() => {
     const connect = new URLSearchParams(location.hash.slice(1)).get("connect");
     if (connect) {
+      connecting.current = new AbortController();
       history.replaceState(null, "", location.pathname);
-      api("/api/participant/session", { token: connect })
+      api("/api/participant/session", {
+        token: connect,
+        signal: connecting.current.signal,
+      })
         .then(() => {
           setToken(connect);
           setRoute("/requests");
@@ -1038,17 +1271,19 @@ function App() {
         )}
         {route === "/" ? (
           <Overview
+            key={credential}
             credential={credential}
-            unlock={setHash}
+            unlock={unlock}
             expire={() => {
               signOut();
               setSessionError(true);
             }}
           />
         ) : route === "/packets" ? (
-          <Packets hash={hash} unlock={setHash} />
+          <Packets key={hash} hash={hash} unlock={unlock} />
         ) : route === "/requests" ? (
           <Requests
+            key={token}
             token={token}
             expire={() => {
               setToken("");
@@ -1058,7 +1293,7 @@ function App() {
         ) : route === "/transparency" ? (
           <Transparency />
         ) : route === "/maintainer" ? (
-          <Maintainer />
+          <Maintainer key={credential} />
         ) : (
           <PageHeading
             eyebrow="404"

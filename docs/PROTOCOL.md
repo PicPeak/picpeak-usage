@@ -35,7 +35,7 @@ PicPeak validates receipt operation ID, identity, action, sequence, packet
 digest, and status before acknowledging delivery.
 
 Retries reuse the immutable packet with a fresh issue time, nonce, and signature.
-An accepted packet with matching digest receives its original receipt, without
+An accepted packet with matching digest receives its original non-secret receipt, without
 another data point. Conflicting packet IDs or sequences are rejected. A full
 clone of the same private key is cryptographically indistinguishable; local
 storage binding and diverging sequence detection provide additional safeguards.
@@ -59,9 +59,13 @@ storage binding and diverging sequence detection provide additional safeguards.
   Marketing permission is valid only for a public-authorized testimonial.
 - `vote`: target feature-request UUID and `voted` boolean. Target must be
   published. At most one vote per installation/request.
-- `session`: empty payload. Returns a random 15-minute participant token for
+- `session`: empty payload. Returns a pseudorandom, server-key-derived 15-minute participant token for
   portal voting. It cannot send reports, delete data, or moderate. Transfer via
   URL fragment; the UI removes it immediately and keeps it only in memory.
+  The token is never stored in a receipt. Re-signing the same command can return
+  the same token only while it remains valid. Expired/rotated/migrated sessions
+  return the accepted receipt with `session_expired: true` and no token; request
+  a new session with the next sequence, never reuse that expired command.
 
 Daily per-installation limits: 10 feedback items, 50 sessions, 100 signed vote
 changes, and 100 portal vote changes. Transport and global registration limits
@@ -107,14 +111,35 @@ portal requests never set markers or cause reports.
   daily history. Opt-out removes historical contributions too.
 - `/api/participant/dataset`: every latest feature projection without identity
   or signature, in pages of 200. `/api/participant/export` downloads all as
-  NDJSON. No minimum bucket size or suppression applies.
+  NDJSON from one database snapshot. Pages return `revision`; pass it on requests
+  with `offset > 0`. A changed/missing revision returns `DATASET_CHANGED` (409):
+  restart pagination. No minimum bucket size or suppression applies.
 - Public without credentials: schema, source archive, published feature requests
   and testimonials, and the transparency documentation.
 - `POST /api/participant/lookup` with `installation_id`: all accepted raw report
   envelopes, received time, and signature-verification status. Hash is a private
   read credential, never a URL parameter or a public dataset field.
+  This compatibility endpoint streams a complete JSON object under a read
+  snapshot; `GET /api/participant/raw-export` offers the same download with a
+  bearer read credential. Both include a dated export receipt. Each logical
+  usage report appears once, exactly as first received; transport retries are
+  deduplicated and rejected attempts/other operation types are not usage reports.
+- `POST /api/participant/packets`: bounded UI preview. Body `installation_id`,
+  optionally `after` (last UTC report date) and `revision` from the previous page.
+  Returns up to 200 packets, `next` and `revision`. On `DATASET_CHANGED`, restart.
+- Public requests/testimonials and the maintainer inbox return up to 200 items,
+  ordered by immutable ID. Follow `X-Next-Cursor` with `?after=<id>`; refresh from
+  the start to discover concurrent new publications. Voting-session responses
+  expose the same cursor as `next`. There is no full-dataset truncation.
+- Homepage consumers use `/api/public/marketing-testimonials`, which requires
+  author publication AND marketing consent AND maintainer publication. The
+  general `/api/public/testimonials` feed is portal-only and is NOT approval for
+  homepage marketing. Neither feed exposes private consent flags or identities.
 - Private feedback is maintainer-only. Publication requires submitter permission
   and review; homepage marketing requires additional permission. Opt-out deletes
   private/public feedback, requests, testimonials, votes, and all sessions.
 - Raw packets remain available for active participation. Opt-out removes them
-  and their projections; only a one-way revocation digest remains.
+  and their projections; only a one-way revocation digest remains linked to the
+  former identity. Short-lived global abuse counters have no identity linkage.
+  A deletion response also carries an identity-free confirmation for the user
+  to retain. See OPERATIONS.md for the full retention inventory and upgrade rules.

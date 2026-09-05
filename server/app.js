@@ -1,10 +1,11 @@
 "use strict";
 const express = require("express");
 const helmet = require("helmet");
-const { rateLimit } = require("express-rate-limit");
+const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const { Collector } = require("./collector");
+const { streamExport } = require("./exports");
 const {
   envelopeSchema,
   MAX_BYTES,
@@ -24,14 +25,18 @@ function createApp({
   ...options
 }) {
   const app = express();
-  const collector = new Collector(db, { now, ...options });
+  const collector = new Collector(db, {
+    now,
+    sessionSecret: process.env.SESSION_SECRET || maintainerToken,
+    ...options,
+  });
   app.locals.collector = collector;
   app.disable("x-powered-by");
   const proxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
   if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 3)
     throw new Error("Invalid TRUST_PROXY_HOPS");
   app.set("trust proxy", proxyHops);
-  app.set("query parser", "simple"); // no nested/array parsing; only ?offset= exists
+  app.set("query parser", "simple"); // flat, explicitly validated pagination fields
   app.use(
     helmet({
       referrerPolicy: { policy: "no-referrer" },
@@ -76,10 +81,9 @@ function createApp({
       keyGenerator: (req) =>
         crypto
           .createHmac("sha256", limiterKey)
-          .update(req.ip || "unknown")
+          .update(ipKeyGenerator(req.ip || "unknown", 56))
           .digest("hex"),
       message: { error: "RATE_LIMITED" },
-      validate: false,
     });
   if (!disableRateLimit) {
     app.use("/api", makeLimiter(1000));
@@ -87,6 +91,8 @@ function createApp({
       [
         "/api/envelopes",
         "/api/participant/lookup",
+        "/api/participant/packets",
+        "/api/participant/raw-export",
         "/api/participant/summary",
         "/api/participant/dataset",
         "/api/participant/export",
@@ -127,40 +133,65 @@ function createApp({
       const offset = Number(req.query.offset || 0);
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000)
         throw new ProtocolError("INVALID_OFFSET");
-      res.json(await collector.dataset(offset));
+      const revision = req.query.revision;
+      if (
+        revision !== undefined &&
+        (typeof revision !== "string" || !/^\d{1,20}$/.test(revision))
+      )
+        throw new ProtocolError("INVALID_REVISION");
+      res.json(await collector.datasetPage(offset, revision));
     }),
   );
   app.get(
     "/api/participant/export",
     readerGuard,
-    wrap(async (req, res) => {
-      res
-        .type("application/x-ndjson")
-        .attachment("picpeak-usage-public.ndjson");
-      let offset = 0;
-      do {
-        const page = await collector.dataset(offset);
-        for (const row of page.records) {
-          if (res.destroyed) return;
-          if (!res.write(`${JSON.stringify(row)}\n`))
-            await new Promise((resolve) => {
-              res.once("drain", resolve);
-              res.once("close", resolve);
-            });
-        }
-        offset = page.next;
-      } while (offset !== null);
-      res.end();
-    }),
+    wrap(async (req, res) =>
+      streamExport({ res, db, collector, credential: bearer(req) }),
+    ),
   );
+  const feedbackCursor = (req) => {
+    const value = req.query.after || "";
+    if (typeof value !== "string" || (value && !/^[a-f0-9-]{36}$/.test(value)))
+      throw new ProtocolError("INVALID_CURSOR");
+    return value;
+  };
+  const feedbackResponse = (res, rows) => {
+    if (rows.length === 200) res.set("X-Next-Cursor", rows.at(-1).id);
+    return res.json(rows);
+  };
   app.get(
     "/api/public/requests",
-    wrap(async (_req, res) => res.json(await collector.publicFeedback())),
+    wrap(async (req, res) =>
+      feedbackResponse(
+        res,
+        await collector.publicFeedback("feature_request", null, {
+          after: feedbackCursor(req),
+        }),
+      ),
+    ),
   );
   app.get(
     "/api/public/testimonials",
-    wrap(async (_req, res) =>
-      res.json(await collector.publicFeedback("testimonial")),
+    wrap(async (req, res) =>
+      feedbackResponse(
+        res,
+        await collector.publicFeedback("testimonial", null, {
+          after: feedbackCursor(req),
+        }),
+      ),
+    ),
+  );
+  // Homepage consumers MUST use this feed, not the general portal feed.
+  app.get(
+    "/api/public/marketing-testimonials",
+    wrap(async (req, res) =>
+      feedbackResponse(
+        res,
+        await collector.publicFeedback("testimonial", null, {
+          marketing: true,
+          after: feedbackCursor(req),
+        }),
+      ),
     ),
   );
   app.post(
@@ -168,16 +199,65 @@ function createApp({
     wrap(async (req, res) => {
       if (!req.body || Object.keys(req.body).length !== 1)
         throw new ProtocolError("INVALID_LOOKUP");
-      res.json(await collector.lookup(req.body.installation_id));
+      if (
+        typeof req.body.installation_id !== "string" ||
+        !/^[a-f0-9]{64}$/.test(req.body.installation_id)
+      )
+        throw new ProtocolError("INVALID_LOOKUP");
+      await streamExport({
+        res,
+        db,
+        collector,
+        installationId: req.body.installation_id,
+      });
+    }),
+  );
+  app.get(
+    "/api/participant/raw-export",
+    wrap(async (req, res) => {
+      // A session can obtain its own lookup hash already; never accept a target
+      // identity in a query parameter or leak credentials into URLs/access logs.
+      const id = await collector.reader(bearer(req));
+      await streamExport({ res, db, collector, installationId: id });
+    }),
+  );
+  app.post(
+    "/api/participant/packets",
+    wrap(async (req, res) => {
+      const body = req.body;
+      if (
+        !body ||
+        Object.keys(body).some(
+          (key) => !["installation_id", "after", "revision"].includes(key),
+        ) ||
+        (body.after !== undefined &&
+          (typeof body.after !== "string" ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(body.after))) ||
+        (body.revision !== undefined &&
+          (typeof body.revision !== "string" ||
+            !/^\d{1,20}$/.test(body.revision)))
+      )
+        throw new ProtocolError("INVALID_LOOKUP");
+      res.json(
+        await collector.packetPage(
+          body.installation_id,
+          body.after,
+          body.revision,
+        ),
+      );
     }),
   );
   app.get(
     "/api/participant/session",
     wrap(async (req, res) => {
       const id = await collector.participant(bearer(req));
+      const requests = await collector.publicFeedback("feature_request", id, {
+        after: feedbackCursor(req),
+      });
       res.json({
         installation_id: id,
-        requests: await collector.publicFeedback("feature_request", id),
+        requests,
+        next: requests.length === 200 ? requests.at(-1).id : null,
       });
     }),
   );
@@ -235,7 +315,7 @@ function createApp({
   app.get(
     "/api/maintainer/feedback",
     maintainer,
-    wrap(async (_req, res) => {
+    wrap(async (req, res) => {
       const rows = await db("feedback")
         .select(
           "id",
@@ -249,8 +329,11 @@ function createApp({
           "status",
           "created_at",
         )
-        .orderBy("created_at", "desc");
-      res.json(
+        .where("id", ">", feedbackCursor(req))
+        .orderBy("id")
+        .limit(200);
+      feedbackResponse(
+        res,
         rows.map((r) => ({
           ...r,
           allow_public: Boolean(r.allow_public),
@@ -286,7 +369,7 @@ function createApp({
     }),
   );
   app.use((error, _req, res, _next) => {
-    if (res.headersSent) return res.end();
+    if (res.headersSent) return res.destroy();
     const status =
       error.status || (error.type === "entity.too.large" ? 413 : 500);
     // Never echo validation input, headers, database details, or feedback.

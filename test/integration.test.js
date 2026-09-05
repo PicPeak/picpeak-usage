@@ -28,6 +28,25 @@ async function setup(t) {
   await require(
     path.join(root, "backend/migrations/core/201_product_usage"),
   ).up(local);
+  // Use the complete usage schema of the checked-out client, not a stale
+  // hand-maintained subset. Optional newer migrations keep released clients
+  // compatible while CI also exercises the current PicPeak branch.
+  for (const migration of (
+    await fs.readdir(path.join(root, "backend/migrations/core"))
+  )
+    .filter(
+      (name) =>
+        /^\d+_product_usage.*\.js$/.test(name) && !name.startsWith("201_"),
+    )
+    .sort()) {
+    await require(path.join(root, "backend/migrations/core", migration)).up(
+      local,
+    );
+  }
+  await local.schema.createTable("css_templates", (table) => {
+    table.increments("id");
+    table.boolean("is_enabled");
+  });
   await local.schema.createTable("app_settings", (table) => {
     table.string("setting_key").primary();
     table.text("setting_value");
@@ -44,6 +63,7 @@ async function setup(t) {
     table.increments("id");
     table.text("color_theme");
     table.text("external_path");
+    table.integer("css_template_id");
   });
   await local.schema.createTable("mail_accounts", (table) => {
     table.increments("id");
@@ -67,7 +87,12 @@ async function setup(t) {
     smtp_host: "private-mail.example.test",
   });
   const clock = { value: Date.parse("2026-09-05T12:00:00.000Z") };
-  const app = createApp({ db, now: () => clock.value, disableRateLimit: true });
+  const app = createApp({
+    db,
+    now: () => clock.value,
+    disableRateLimit: true,
+    sessionSecret: "integration-only-session-secret-123456789",
+  });
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   const transport = { offline: false, loseReceipt: false, calls: 0 };
@@ -129,6 +154,11 @@ test(
     await service.tick();
     const data = await service.export();
     assert.equal(data.packets.length, 1);
+    assert.equal(data.export_receipt.packet_count, 1);
+    assert.equal(
+      (await service.status()).privacy_receipts.last_export.report_count,
+      1,
+    );
     const serialized = JSON.stringify(data);
     assert.ok(!serialized.includes("PRIVATE EVENT"));
     assert.ok(!serialized.includes("private-mail"));
@@ -148,6 +178,11 @@ test(
     assert.equal(state.status, "disabled");
     assert.equal(state.private_key_encrypted, null);
     assert.equal(state.installation_id, null);
+    const receipts = (await service.status()).privacy_receipts;
+    assert.equal(receipts.last_deletion.status, "collector-confirmed");
+    assert.equal(receipts.last_export, undefined);
+    assert.ok(!JSON.stringify(receipts).includes(id));
+    assert.ok(!JSON.stringify(receipts).includes("session_token"));
     await assert.rejects(c.lookup(id));
     await service.enable("usage-consent.v1");
     assert.notEqual((await service.status()).installation_id, id);
@@ -273,7 +308,7 @@ test(
   "in-app feedback is separate from reports and a short-lived portal session permits votes",
   { skip: !UsageService },
   async (t) => {
-    const { service, c, db } = await setup(t);
+    const { service, c, db, local } = await setup(t);
     await service.enable("usage-consent.v1");
     const feedbackId = require("node:crypto").randomUUID();
     const result = await service.command("feedback", {
@@ -291,6 +326,11 @@ test(
     await c.moderate(feedbackId, { published: true, status: "open" });
     const session = await service.command("session", {});
     assert.ok(session.receipt.session_token);
+    assert.ok(
+      !(await local("product_usage_state").first()).last_receipt.includes(
+        session.receipt.session_token,
+      ),
+    );
     assert.equal(
       await c.participant(session.receipt.session_token),
       (await service.status()).installation_id,
@@ -300,6 +340,76 @@ test(
     await service.disable();
     assert.equal((await db("feedback")).length, 0);
     assert.equal((await db("votes")).length, 0);
+  },
+);
+
+test(
+  "local audit receipts cannot be restored by an export completing after opt-out",
+  { skip: !UsageService },
+  async (t) => {
+    const { service, transport, local } = await setup(t);
+    await service.enable("usage-consent.v1");
+    await service.tick();
+    const id = (await service.status()).installation_id;
+    let release;
+    let received;
+    const accepted = new Promise((resolve) => {
+      received = resolve;
+    });
+    const paused = new Promise((resolve) => {
+      release = resolve;
+    });
+    transport.afterResponse = async () => {
+      transport.afterResponse = null;
+      received();
+      await paused;
+    };
+    const exporting = service.export();
+    await accepted;
+    try {
+      await service.disable();
+    } finally {
+      release();
+      await exporting;
+    }
+    const state = await local("product_usage_state").first();
+    assert.equal(state.status, "disabled");
+    assert.equal(state.installation_id, null);
+    const receipts = JSON.parse(state.privacy_receipts);
+    assert.equal(receipts.last_deletion.status, "collector-confirmed");
+    assert.equal(receipts.last_export, undefined);
+    assert.ok(!JSON.stringify(receipts).includes(id));
+  },
+);
+
+test(
+  "client receipt migration is repeatable and scrubs legacy plaintext sessions",
+  { skip: !UsageService },
+  async (t) => {
+    const { local } = await setup(t);
+    const migration = require(
+      path.join(
+        root,
+        "backend/migrations/core/204_product_usage_privacy_receipts",
+      ),
+    );
+    await local("product_usage_state")
+      .where({ id: 1 })
+      .update({
+        last_receipt: JSON.stringify({
+          status: "accepted",
+          session_token: "synthetic-old-token",
+        }),
+      });
+    await migration.up(local);
+    await migration.up(local);
+    assert.deepEqual(
+      JSON.parse((await local("product_usage_state").first()).last_receipt),
+      { status: "accepted" },
+    );
+    assert.ok(
+      await local.schema.hasColumn("product_usage_state", "privacy_receipts"),
+    );
   },
 );
 

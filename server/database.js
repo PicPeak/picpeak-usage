@@ -134,5 +134,95 @@ async function migrate(db) {
       // deleted identity. No public key, packet, feedback, or lookup access.
       t.string("identity_digest", 64).primary();
     });
+
+  if (!(await db.schema.hasTable("abuse_budgets"))) {
+    await db.schema.createTable("abuse_budgets", (t) => {
+      // Global counters, deliberately unrelated to an installation or address.
+      t.string("kind", 32).notNullable();
+      t.string("day", 10).notNullable();
+      t.integer("used").notNullable().defaultTo(0);
+      t.primary(["kind", "day"]);
+    });
+    // Preserve the still-observable registration budget during an upgrade.
+    const previousDay = new Date(Date.now() - 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const days = await db("operations")
+      .where({ action: "register" })
+      .where("day", ">=", previousDay)
+      .select("day")
+      .count("* as used")
+      .groupBy("day");
+    for (const row of days)
+      await db("abuse_budgets")
+        .insert({ kind: "registration", day: row.day, used: Number(row.used) })
+        .onConflict(["kind", "day"])
+        .ignore();
+  }
+  if (!(await db.schema.hasTable("collector_meta")))
+    await db.schema.createTable("collector_meta", (t) => {
+      t.integer("id").primary();
+      t.bigInteger("revision").notNullable().defaultTo(0);
+      t.integer("hardening_version").notNullable().defaultTo(0);
+    });
+  await db("collector_meta").insert({ id: 1 }).onConflict("id").ignore();
+  const meta = await db("collector_meta").where({ id: 1 }).first();
+  if (meta.hardening_version < 1) {
+    await db.transaction(async (tx) => {
+      // Old releases duplicated plaintext session tokens into operations.
+      // Revoke old sessions once and scrub receipts; never reissue old tokens.
+      await tx("sessions").delete();
+      let after = "";
+      for (;;) {
+        const rows = await tx("operations")
+          .where({ action: "session" })
+          .where("packet_id", ">", after)
+          .orderBy("packet_id")
+          .limit(200);
+        if (!rows.length) break;
+        for (const row of rows) {
+          const receipt = JSON.parse(row.receipt);
+          delete receipt.session_token;
+          receipt.session_expired = true;
+          await tx("operations")
+            .where({ packet_id: row.packet_id })
+            .update({ receipt: JSON.stringify(receipt) });
+        }
+        after = rows.at(-1).packet_id;
+      }
+      await tx("collector_meta")
+        .where({ id: 1 })
+        .update({ hardening_version: 1 });
+    });
+  }
+  if (meta.hardening_version < 2) {
+    await db.transaction(async (tx) => {
+      await tx.schema.alterTable("votes", (t) =>
+        t.index("feedback_id", "votes_feedback_lookup"),
+      );
+      await tx.schema.alterTable("feedback", (t) => {
+        t.index(
+          ["kind", "published", "allow_public", "id"],
+          "feedback_public_page",
+        );
+        t.index(
+          ["kind", "published", "allow_public", "allow_marketing", "id"],
+          "feedback_marketing_page",
+        );
+      });
+      await tx("collector_meta")
+        .where({ id: 1 })
+        .update({ hardening_version: 2 });
+    });
+  }
 }
-module.exports = { createDatabase, migrate };
+
+function readSnapshot(db, work) {
+  return db.transaction(
+    work,
+    db.client.config.client === "pg"
+      ? { isolationLevel: "repeatable read", readOnly: true }
+      : undefined,
+  );
+}
+module.exports = { createDatabase, migrate, readSnapshot };
