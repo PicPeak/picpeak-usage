@@ -1,5 +1,9 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+ENV npm_config_build_from_source=true
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
