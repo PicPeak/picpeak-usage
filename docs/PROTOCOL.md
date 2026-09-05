@@ -1,0 +1,115 @@
+# usage.v1 protocol
+
+Implements the backend-signs/backend-sends decision in
+[#1110's transport follow-up](https://github.com/PicPeak/picpeak/issues/1110#issuecomment-5367220785).
+Browser transport is not implemented. CORS is not authentication.
+
+## Exact envelope
+
+`POST /api/envelopes` accepts at most 16 KiB of uncompressed JSON. The complete
+closed JSON Schema is at `/schema/usage.v1.json`. Unknown fields are rejected at
+every level. No arbitrary attributes or free-form telemetry are supported.
+
+| Field                    | Meaning                                                       |
+| ------------------------ | ------------------------------------------------------------- |
+| `packet.schema_version`  | Literal `usage.v1`                                            |
+| `packet.installation_id` | SHA-256 of Ed25519 SPKI public-key DER, lowercase hex         |
+| `packet.packet_id`       | UUIDv4 identifying an immutable operation                     |
+| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session` |
+| `packet.sequence`        | 0 at registration; increments per accepted operation          |
+| `packet.payload`         | Action-specific closed schema, below                          |
+| `public_key`             | Ed25519 SPKI DER, unpadded base64url                          |
+| `issued_at`              | UTC ISO-8601 with milliseconds, within 5 minutes              |
+| `nonce`                  | UUIDv4; reused nonces rejected                                |
+| `signature`              | Ed25519 signature, unpadded base64url                         |
+
+Sign the UTF-8 canonical JSON of the envelope without `signature`. Recursively
+sort object keys lexicographically, preserve array order, and use JSON
+string/primitive serialization. The schema excludes non-finite numbers,
+undefined values, unsafe integers, and arbitrary numeric fields. Use the
+included protocol implementation and conformance fixtures.
+
+Identity is self-certifying: registration proves possession of the private key.
+The key never enters browser storage. HTTPS authenticates the collector.
+PicPeak validates receipt operation ID, identity, action, sequence, packet
+digest, and status before acknowledging delivery.
+
+Retries reuse the immutable packet with a fresh issue time, nonce, and signature.
+An accepted packet with matching digest receives its original receipt, without
+another data point. Conflicting packet IDs or sequences are rejected. A full
+clone of the same private key is cryptographically indistinguishable; local
+storage binding and diverging sequence detection provide additional safeguards.
+
+## Actions
+
+- `register`: `consent_version: usage-consent.v1`, with sequence zero. A second
+  different registration for the same identity conflicts.
+- `report`: `picpeak_version`, `report_date`, `generated_at`, `features`, and
+  `gallery_layouts`. Dates are UTC. Version accepts release versions and
+  numbered alpha/beta/rc prereleases, not arbitrary build labels. One accepted
+  report per logical day; at most two per receipt day to allow a delayed report
+  plus the current day. Failed delivery remains durable in PicPeak.
+- `delete`: empty payload. Requires ownership proof, even for a stale sequence.
+  Atomically deletes active records. Repeating deletion safely handles lost
+  receipts. A one-way revocation digest blocks replayed old registrations.
+- `feedback`: UUID `feedback_id`, kind (`feedback`, `feature_request`,
+  `testimonial`), title (1–120 characters), body (1–4000), name (0–80),
+  `allow_public`, `allow_marketing`. Deliberate submissions, separate from
+  telemetry. Publication defaults off and requires permission plus review.
+  Marketing permission is valid only for a public-authorized testimonial.
+- `vote`: target feature-request UUID and `voted` boolean. Target must be
+  published. At most one vote per installation/request.
+- `session`: empty payload. Returns a random 15-minute participant token for
+  portal voting. It cannot send reports, delete data, or moderate. Transfer via
+  URL fragment; the UI removes it immediately and keeps it only in memory.
+
+Daily per-installation limits: 10 feedback items, 50 sessions, 100 signed vote
+changes, and 100 portal vote changes. Transport and global registration limits
+provide additional abuse controls. Signatures prevent impersonating another
+installation; they cannot attest that a self-hosted client runs unmodified code.
+
+## Every feature signal
+
+All features have `configured` and `used` booleans. Used is monotonic since the
+current participation began. Opt-out clears all local markers.
+
+| Feature                                                                                    | Configured                                           | Used                                                                 |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `crm`                                                                                      | Clients flag                                         | Successful admin customer/CRM operation                              |
+| `crm_quotes`, `crm_invoices`, `crm_contracts`, `crm_projects`, `crm_calendar`, `crm_hours` | Corresponding capability flag                        | Successful admin capability API operation                            |
+| `customer_portal`                                                                          | Portal flag                                          | Successful admin invitation/send-invitation                          |
+| `accounting`, `workflows`, `newsletters`                                                   | Corresponding flag                                   | Successful admin capability API operation                            |
+| `face_recognition`                                                                         | Faces flag                                           | Admin faces/people operation, never visitor search                   |
+| `custom_css`                                                                               | Nonempty applied global or event CSS                 | Applied CSS observed after consent; no CSS text sent                 |
+| `oauth`                                                                                    | Enabled OIDC with issuer/client ID                   | Successful admin SSO callback after consent                          |
+| `smtp`                                                                                     | Global or mail-account SMTP host configured          | Successful admin email test/send request                             |
+| `whatsapp`                                                                                 | Enabled flag and configured enabled sender           | Successful admin WhatsApp test/send request                          |
+| `backup`                                                                                   | Backup schedule enabled                              | Successful admin backup/export initiation                            |
+| `s3_storage`                                                                               | S3 photo storage or S3 backup destination configured | Admin S3 photo upload, S3 test upload, or backup initiation using S3 |
+| `share_mounts`                                                                             | At least one event linked to an external-media path  | Successful admin external-media operation                            |
+
+An admin operation means successful API invocation, not completion of a later
+queued job. Failed/unauthorized calls set no marker. Markers contain only
+capability names, never paths, user/event IDs, times, counts, or request values.
+
+Gallery layouts are the set of controlled enums applied to events, inspected
+only during admin-triggered reporting: grid, masonry, carousel, timeline,
+mosaic, gallery-premium, gallery-story, other. Unknown values become other.
+No event identifiers or counts are sent. Public, gallery, visitor, and customer
+portal requests never set markers or cause reports.
+
+## Inspection, publication, and deletion
+
+- `/api/public/summary`: latest adoption/version/layout distributions and daily
+  history. Opt-out removes historical contributions too.
+- `/api/public/dataset`: every latest feature projection without identity or
+  signature, in pages of 200. `/api/public/export` downloads all as NDJSON.
+  No minimum bucket size or suppression applies.
+- `POST /api/participant/lookup` with `installation_id`: all accepted raw report
+  envelopes, received time, and signature-verification status. Hash is a private
+  read credential, never a URL parameter or a public dataset field.
+- Private feedback is maintainer-only. Publication requires submitter permission
+  and review; homepage marketing requires additional permission. Opt-out deletes
+  private/public feedback, requests, testimonials, votes, and all sessions.
+- Raw packets remain available for active participation. Opt-out removes them
+  and their projections; only a one-way revocation digest remains.

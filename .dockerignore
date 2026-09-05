@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+storage
+coverage
+.env
+.env.*
+!.env.example
+AGENTS.md
+*.log
+*.sqlite*
+public/source.tar.gz
