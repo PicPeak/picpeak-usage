@@ -7,7 +7,7 @@ RUN npm run build && npm prune --omit=dev --package-lock=false --no-audit --no-f
 
 FROM node:22-bookworm-slim
 WORKDIR /app
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3190 DATABASE_PATH=/app/storage/usage.sqlite
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3190 DATABASE_PATH=/app/storage/usage.sqlite TRUST_PROXY_HOPS=1
 COPY --from=build --chown=node:node /app /app
 RUN mkdir -p /app/storage && chown node:node /app/storage
 USER node
