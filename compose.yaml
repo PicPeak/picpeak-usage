@@ -8,7 +8,9 @@ services:
     environment:
       MAINTAINER_TOKEN: ${MAINTAINER_TOKEN:?Set a random maintainer token of at least 32 characters}
       DATABASE_URL: ${DATABASE_URL:-}
-      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
+      # The container is meant to run behind exactly one TLS-terminating reverse
+      # proxy on this host, so one X-Forwarded-For hop is trusted by default.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
     volumes:
       - usage-data:/app/storage
 volumes:

@@ -10,7 +10,7 @@ requests, so browser CORS credentials are unnecessary.
 | `DATABASE_PATH`    | storage/usage.sqlite          | Persistent SQLite file                      |
 | `DATABASE_URL`     | unset                         | PostgreSQL; takes precedence                |
 | `MAINTAINER_TOKEN` | unset                         | 32+ random characters for maintainer access |
-| `TRUST_PROXY_HOPS` | 0                             | Exact trusted proxy count, 0–3              |
+| `TRUST_PROXY_HOPS` | 0 (1 in Docker/Compose)       | Exact trusted proxy count, 0–3              |
 
 The Node process reads environment variables. Use `node --env-file=.env
 server/index.js` to load a native .env, or Compose's own .env loading. Never put
@@ -35,7 +35,14 @@ infrastructure security logs separate and short-lived (recommended maximum
 24 hours), with no payloads or credentials.
 
 Transport rate limits retain only ephemeral HMAC address keys in process memory
-for ten minutes. With multiple replicas, add privacy-preserving edge limits;
+for ten minutes. They key on the client address as Express sees it. The Docker image and Compose
+file trust one hop because the container runs behind one reverse proxy; set
+`TRUST_PROXY_HOPS` to the exact hop count in every other setup, otherwise
+all installations share the proxy's single bucket (120 envelopes per ten
+minutes) and legitimate reports are rejected. Never set it higher than the real
+hop count; clients could then spoof `X-Forwarded-For` and escape the limits.
+The process warns at startup when it listens on a non-loopback address with
+zero trusted hops. With multiple replicas, add privacy-preserving edge limits;
 process-local limits do not coordinate. Database constraints, sequences, body
 limits, and per-installation action quotas remain effective across replicas.
 Defaults allow 1,000 registrations per UTC day and 100,000 active identities.

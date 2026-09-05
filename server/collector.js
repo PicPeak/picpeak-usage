@@ -24,6 +24,7 @@ class Collector {
   }
 
   async receive(envelope) {
+    this.summaryCache = null;
     const now = this.now();
     const packet = verifyEnvelope(envelope, now);
     const id = packet.installation_id;
@@ -317,14 +318,13 @@ class Collector {
       : [];
     const votes = new Map(counts.map((r) => [r.feedback_id, Number(r.count)]));
     return rows.map(
-      ({ id, title, body, name, status, created_at, allow_marketing }) => ({
+      ({ id, title, body, name, status, created_at }) => ({
         id,
         title,
         body,
         name,
         status,
         created_at,
-        allow_marketing: Boolean(allow_marketing),
         votes: votes.get(id) || 0,
         voted: own.includes(id),
       }),
@@ -332,6 +332,17 @@ class Collector {
   }
 
   async summary() {
+    // Public aggregate only. Recomputed at most every 20 seconds so a burst of
+    // dashboard visitors cannot make the database re-parse every snapshot.
+    const now = this.now();
+    if (this.summaryCache && now - this.summaryCache.at < 20000)
+      return this.summaryCache.value;
+    const value = await this.computeSummary();
+    this.summaryCache = { at: now, value };
+    return value;
+  }
+
+  async computeSummary() {
     const snapshots = await this.db("snapshots").select("projection");
     const data = snapshots.map((row) => JSON.parse(row.projection));
     const versions = {};

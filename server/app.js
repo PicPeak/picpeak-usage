@@ -31,7 +31,35 @@ function createApp({
   if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 3)
     throw new Error("Invalid TRUST_PROXY_HOPS");
   app.set("trust proxy", proxyHops);
-  app.use(helmet({ referrerPolicy: { policy: "no-referrer" } }));
+  app.set("query parser", "simple"); // no nested/array parsing; only ?offset= exists
+  app.use(
+    helmet({
+      referrerPolicy: { policy: "no-referrer" },
+      // The portal loads nothing from third parties: no https: wildcards.
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          fontSrc: ["'self'"],
+          imgSrc: ["'self'", "data:"],
+          connectSrc: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          upgradeInsecureRequests: [],
+        },
+      },
+    }),
+  );
+  app.use((_req, res, next) => {
+    res.set(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    );
+    next();
+  });
   app.use("/api", (_req, res, next) => {
     res.set("Cache-Control", "no-store");
     next();
@@ -223,7 +251,18 @@ function createApp({
     ),
   );
   app.use("/api", (_req, res) => res.status(404).json({ error: "NOT_FOUND" }));
-  app.use(express.static(path.join(__dirname, "../dist"), { index: false }));
+  app.use(
+    express.static(path.join(__dirname, "../dist"), {
+      index: false,
+      setHeaders(res, file) {
+        // Vite hashes /assets; font files keep stable names, so shorter.
+        if (/[\\/]assets[\\/]/.test(file))
+          res.set("Cache-Control", "public, max-age=31536000, immutable");
+        else if (/[\\/]fonts[\\/]/.test(file))
+          res.set("Cache-Control", "public, max-age=2592000");
+      },
+    }),
+  );
   app.get("*", (_req, res, next) =>
     res.sendFile(path.join(__dirname, "../dist/index.html"), (error) => {
       if (error) next(error);

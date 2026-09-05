@@ -2,7 +2,7 @@
 
 The standalone collector and transparency portal for [PicPeak product usage (#1110)](https://github.com/PicPeak/picpeak/issues/1110): feature adoption analysis, public data export, private raw-packet lookup/export, participant voting, and a maintainer feedback inbox.
 
-PicPeak integration lives in the PicPeak repository. This app has no visitor trackers, third-party scripts, fonts, or analytics providers.
+PicPeak integration lives in the PicPeak repository. This app has no visitor trackers, third-party scripts, or analytics providers. Fonts are self-hosted (the same three families as picpeak.app) and the UI follows the picpeak.app design tokens.
 
 ## Run locally
 
@@ -34,7 +34,7 @@ Set MAINTAINER_TOKEN in your environment or Compose .env, then:
 docker compose up --build -d
 ```
 
-The image runs as an unprivileged user and exposes loopback port 3190. Put an HTTPS reverse proxy at usage.picpeak.app in front of it. See [operations](docs/OPERATIONS.md) for logging, retention, secrets, and deletion/restore requirements.
+The image runs as an unprivileged user and exposes loopback port 3190. Put an HTTPS reverse proxy at usage.picpeak.app in front of it. The image and Compose file trust exactly one X-Forwarded-For hop (TRUST_PROXY_HOPS=1); set the variable to the real number of proxies if there are more (up to 3). With 0 hops behind a proxy, every client shares one rate-limit bucket and the collector rejects legitimate reports as soon as 120 installations report within ten minutes; with more hops than real proxies, clients can spoof their address. The bare `npm start` default stays 0 for direct loopback use. See [operations](docs/OPERATIONS.md) for logging, retention, secrets, and deletion/restore requirements.
 
 Every build includes /source.tar.gz containing a fixed allowlist of application source, protocol, tests, manifests, and documentation. Credentials, storage, Git metadata, and agent files are excluded. The deployed software is auditable without depending on a remote Git repository.
 

@@ -17,7 +17,7 @@ export interface Feedback {
   voted: boolean;
   created_at: string;
   allow_public?: boolean;
-  allow_marketing: boolean;
+  allow_marketing?: boolean;
   published?: boolean;
 }
 export async function api<T>(
@@ -43,6 +43,15 @@ export async function api<T>(
   const value = await response.json();
   if (!response.ok) throw new Error(value.error || "REQUEST_FAILED");
   return value;
+}
+/** UTC date (YYYY-MM-DD) and timestamp (YYYY-MM-DD HH:MM UTC): the portal
+ *  speaks in UTC days, so dates are shown the same way everywhere. */
+export const day = (iso: string) => iso.slice(0, 10);
+export function stamp(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const s = d.toISOString();
+  return `${s.slice(0, 10)} ${s.slice(11, 16)} UTC`;
 }
 export function download(value: unknown, name: string) {
   const url = URL.createObjectURL(
