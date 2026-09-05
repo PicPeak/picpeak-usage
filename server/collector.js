@@ -288,6 +288,20 @@ class Collector {
     };
   }
 
+  // Read access to aggregate data: the private lookup hash of a registered
+  // installation or a live voting session. Neither can vote, report or delete.
+  async reader(credential, db = this.db) {
+    if (/^[a-f0-9]{64}$/.test(credential || "")) {
+      const installation = await db("installations")
+        .where({ id: credential })
+        .first();
+      if (!installation)
+        throw new ProtocolError("PARTICIPANT_AUTH_REQUIRED", 401);
+      return installation.id;
+    }
+    return this.participant(credential, db);
+  }
+
   async participant(token, db = this.db) {
     if (!/^ppus_[a-f0-9]{64}$/.test(token || ""))
       throw new ProtocolError("PARTICIPANT_AUTH_REQUIRED", 401);

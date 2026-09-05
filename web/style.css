@@ -699,6 +699,32 @@ summary .muted {
   color: var(--ink-muted);
 }
 
+/* ---------- Participant access ---------- */
+.access .lookup {
+  margin-top: 1rem;
+}
+.access .caption {
+  margin-top: 1rem;
+}
+.access .notice {
+  margin: 1rem 0 0;
+}
+.prose-columns.quiet {
+  margin-top: clamp(2rem, 5vw, 3.5rem);
+  padding-top: clamp(2rem, 5vw, 3.5rem);
+}
+.prose-columns .textlink {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0;
+}
+.nav-signout {
+  padding: 0.75rem 0;
+  margin: -0.75rem 0;
+  min-height: 0;
+  font-size: var(--text-small);
+}
+
 /* ---------- Lookup forms ---------- */
 .lookup {
   display: flex;

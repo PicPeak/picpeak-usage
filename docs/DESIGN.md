@@ -10,8 +10,9 @@ v2). Product mode: consistency over novelty, calm motion, dense but clear.
 - **Type**: Schibsted Grotesk 700 (display), Source Sans 3 400/600 (body), Spline Sans
   Mono 400 (labels, dates, numbers). Self-hosted in `public/fonts`, declared in
   `public/fonts.css`; no third-party requests.
-- **Signature**: the three honest participation numbers in the overview hero. Nothing
-  else is decorative. Raw packets render in the site's dark terminal block.
+- **Signature**: the three honest participation numbers in the overview hero, shown
+  once a participant has entered the lookup hash. Nothing else is decorative. Raw
+  packets render in the site's dark terminal block.
 - **Motion**: page headings rise once on load; buttons transition 140 ms; a global
   `prefers-reduced-motion` kill switch. No scroll reveals.
 - **Chrome**: header/footer mirror the site (mark + wordmark, underlined text links,

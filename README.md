@@ -1,6 +1,6 @@
 # picpeak-usage
 
-The standalone collector and transparency portal for [PicPeak product usage (#1110)](https://github.com/PicPeak/picpeak/issues/1110): feature adoption analysis, public data export, private raw-packet lookup/export, participant voting, and a maintainer feedback inbox.
+The standalone collector and transparency portal for [PicPeak product usage (#1110)](https://github.com/PicPeak/picpeak/issues/1110): feature adoption analysis and dataset export for participants, private raw-packet lookup/export, participant voting, and a maintainer feedback inbox. Aggregate usage data is never shown anonymously: it unlocks with an installation's lookup hash or a voting session, as #1110 specifies.
 
 PicPeak integration lives in the PicPeak repository. This app has no visitor trackers, third-party scripts, or analytics providers. Fonts are self-hosted (the same three families as picpeak.app) and the UI follows the picpeak.app design tokens.
 
@@ -24,7 +24,7 @@ Use the PicPeak implementation of #1110 and run its normal migrations. For local
 
 Open PicPeak → Settings → Product usage & feedback, read the disclosure, and explicitly enable participation. The backend registers an Ed25519 identity and sends daily reports on admin app use. Use the same page to preview/export packets, submit feedback, open a 15-minute voting session, or disable participation and delete data.
 
-The hash permits raw-packet lookup only. It cannot vote, send reports, moderate feedback, or delete data. Maintainers open /maintainer with the deployment's separate token, held only in page memory.
+The hash permits read access only: the installation's raw packets and the participant-wide aggregate dataset. It cannot vote, send reports, moderate feedback, or delete data. Maintainers open /maintainer with the deployment's separate token, held only in page memory.
 
 ## Deploy and audit
 
