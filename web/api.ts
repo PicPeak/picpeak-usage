@@ -63,9 +63,12 @@ export async function downloadWith(
   token: string,
   name: string,
   signal?: AbortSignal,
+  body?: unknown,
 ) {
   const response = await fetch(path, {
-    headers: { Authorization: `Bearer ${token}` },
+    method: body === undefined ? "GET" : "POST",
+    headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
     credentials: "omit",
     referrerPolicy: "no-referrer",
     signal,

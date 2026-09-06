@@ -172,6 +172,7 @@ class Collector {
               sequence: 0,
               consent_version: packet.payload.consent_version,
             });
+            await this.bumpRevision(tx);
           } else {
             const updated = await tx("installations")
               .where({ id, sequence: packet.sequence - 1 })
@@ -231,6 +232,7 @@ class Collector {
             await tx("installations").where({ id }).update({
               consent_version: CURRENT_CONSENT_VERSION,
             });
+            await this.bumpRevision(tx);
           }
           if (packet.action === "feedback") {
             await this.checkQuota(tx, id, "feedback", 10, now);

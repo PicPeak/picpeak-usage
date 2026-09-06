@@ -6,6 +6,8 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 const { Collector } = require("./collector");
 const { streamExport } = require("./exports");
+const { history } = require("./history");
+const { reporters, pageOptions } = require("./maintainer");
 const {
   envelopeSchemas,
   CATALOG,
@@ -98,6 +100,7 @@ function createApp({
         "/api/participant/summary",
         "/api/participant/dataset",
         "/api/participant/export",
+        "/api/participant/history",
         "/api/maintainer",
       ],
       makeLimiter(120),
@@ -129,6 +132,11 @@ function createApp({
     "/api/participant/summary",
     readerGuard,
     wrap(async (_req, res) => res.json(await collector.summary())),
+  );
+  app.post(
+    "/api/participant/history",
+    readerGuard,
+    wrap(async (req, res) => res.json(await history(collector, req.body, { credential: bearer(req) }))),
   );
   app.get(
     "/api/participant/dataset",
@@ -316,6 +324,24 @@ function createApp({
       return next(new ProtocolError("MAINTAINER_AUTH_REQUIRED", 401));
     next();
   };
+  app.get("/api/maintainer/summary", maintainer,
+    wrap(async (_req, res) => res.json(await collector.summary())));
+  app.post("/api/maintainer/history", maintainer,
+    wrap(async (req, res) => res.json(await history(collector, req.body, { maintainer: true }))));
+  app.post("/api/maintainer/reporters", maintainer,
+    wrap(async (req, res) => res.json(await reporters(collector, req.body))));
+  app.post("/api/maintainer/packets", maintainer, wrap(async (req, res) => {
+    const { installation_id, after, revision } = pageOptions(req.body, true);
+    res.json(await collector.packetPage(installation_id, after, revision));
+  }));
+  app.post("/api/maintainer/export", maintainer, wrap(async (req, res) => {
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body) ||
+        Object.keys(req.body).some((key) => key !== "installation_id") ||
+        (req.body.installation_id !== undefined &&
+          (typeof req.body.installation_id !== "string" || !/^[a-f0-9]{64}$/.test(req.body.installation_id))))
+      throw new ProtocolError("INVALID_EXPORT_FILTER");
+    await streamExport({ res, db, collector, maintainer: true, installationId: req.body.installation_id });
+  }));
   app.get(
     "/api/maintainer/feedback",
     maintainer,
@@ -323,6 +349,7 @@ function createApp({
       const rows = await db("feedback")
         .select(
           "id",
+          "installation_id",
           "kind",
           "title",
           "body",

@@ -927,6 +927,21 @@ blockquote cite {
 }
 
 /* ---------- Small screens ---------- */
+.history-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 1rem; margin: 1.5rem 0; align-items: end; }
+.history-controls select { width: 100%; }
+.trend-chart { width: 100%; height: auto; min-height: 12rem; margin-top: 1rem; overflow: visible; }
+.trend-chart text { fill: var(--ink-muted); font-family: var(--font-mono); font-size: 13px; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-line { fill: none; stroke: var(--primary); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.chart-point { fill: var(--primary); }
+.table-scroll { max-width: 100%; max-height: 32rem; overflow: auto; }
+.table-scroll table { width: 100%; border-collapse: collapse; font-size: var(--text-small); text-align: left; }
+.table-scroll th, .table-scroll td { padding: 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table-scroll th { color: var(--ink-muted); font-weight: 600; }
+.usage-history table { min-width: 38rem; }
+.usage-history td:first-child { white-space: nowrap; }
+.reporter-id { display: block; min-width: 10rem; max-width: 24rem; overflow-wrap: anywhere; }
+.reporter-details summary { overflow-wrap: anywhere; flex-wrap: wrap; }
 .catalog-entry { border-top: 1px solid var(--line, #ddd); padding: 1rem 0; }
 .catalog-entry summary { cursor: pointer; font-weight: 600; }
 .catalog-entry summary small { display: block; font-weight: 400; overflow-wrap: anywhere; }
