@@ -1,4 +1,4 @@
-# Versioned usage protocol (usage.v1 / usage.v2)
+# Versioned usage protocol (usage.v1 / usage.v2 / usage.v3)
 
 Implements the backend-signs/backend-sends decision in
 [#1110's transport follow-up](https://github.com/PicPeak/picpeak/issues/1110#issuecomment-5367220785).
@@ -7,16 +7,16 @@ Browser transport is not implemented. CORS is not authentication.
 ## Exact envelope
 
 `POST /api/envelopes` accepts at most 16 KiB of uncompressed JSON. The complete
-closed JSON Schemas are at `/schema/usage.v1.json` and `/schema/usage.v2.json`.
-The bilingual field catalog is at `/schema/features.v2.json`. Unknown fields are rejected at
+closed JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, and `/schema/usage.v3.json`.
+The current bilingual field catalog is at `/schema/features.v3.json`; `/schema/features.v2.json` retains its original definitions. Unknown fields are rejected at
 every level. No arbitrary attributes or free-form telemetry are supported.
 
 | Field                    | Meaning                                                       |
 | ------------------------ | ------------------------------------------------------------- |
-| `packet.schema_version`  | Literal `usage.v1` or `usage.v2`; never inferred from payload |
+| `packet.schema_version`  | Literal `usage.v1`, `usage.v2` or `usage.v3`; never inferred from payload |
 | `packet.installation_id` | SHA-256 of Ed25519 SPKI public-key DER, lowercase hex         |
 | `packet.packet_id`       | UUIDv4 identifying an immutable operation                     |
-| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2 also `consent` |
+| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2/v3 also `consent` |
 | `packet.sequence`        | 0 at registration; increments per accepted operation          |
 | `packet.payload`         | Action-specific closed schema, below                          |
 | `public_key`             | Ed25519 SPKI DER, unpadded base64url                          |
@@ -43,7 +43,7 @@ storage binding and diverging sequence detection provide additional safeguards.
 
 ## Actions
 
-- `register`: `consent_version: usage-consent.v1` in v1 or `usage-consent.v2` in v2,
+- `register`: the matching `usage-consent.v1`, `usage-consent.v2` or `usage-consent.v3`,
   with sequence zero. A second
   different registration for the same identity conflicts.
 - `report`: `picpeak_version`, `report_date`, `generated_at`, `features`, and
@@ -74,7 +74,39 @@ changes, and 100 portal vote changes. Transport and global registration limits
 provide additional abuse controls. Signatures prevent impersonating another
 installation; they cannot attest that a self-hosted client runs unmodified code.
 
-## v2 features and explicit consent upgrades
+## v3 capabilities and inventory
+
+`usage.v3` adds 13 capabilities to the 73 in v2: XMP exports, successful photo
+replacement, photographer marks, gallery folders, PicTransfer upload links,
+active workflow configuration, S3 auto-import configuration, invoice import,
+combined billing, manual monthly billing, document conversion, capture-date
+sorting and original download filenames. ML face recognition remains its
+existing capability bit; no faces, embeddings or recognition results are sent.
+
+v3 report payloads additionally require the closed object
+`inventory: { galleries: integer, photos: integer }`. Both integers are in
+0..1,000,000,000. Galleries count current event records, including drafts and
+archives. Photos count current non-video photo records, including retained
+archive and guest-upload records; thumbnails and deleted records are excluded.
+They count database records, not unique files or completed uploads. There are
+no entity IDs, names, per-gallery breakdowns or other inventory fields.
+
+Explicit `usage.v3 / consent` with `{ "consent_version": "usage-consent.v3" }`
+upgrades v1 or v2. A report cannot exceed the stored consent version; consent
+cannot downgrade. v1/v2 schemas, catalogs and old signed envelopes remain
+unchanged. The client stays on the old scope, without new markers or count
+queries, until a matching upgrade receipt. Opt-out wins over late receipts.
+
+Summary and history contain `inventory.galleries` and `inventory.photos`, each
+with `{ total, reported }`. `reported` counts installations supplying that field.
+An older schema contributes neither a zero nor a denominator. History uses only
+the latest report per installation within each period; it does not accumulate
+daily inventories or forward-fill missing periods. Totals can change when the
+reporting population changes. Raw exports, participant datasets and maintainer
+access include consented inventory totals under the existing access controls.
+Opt-out removes these contributions from current and historical results.
+
+## v2 compatibility and explicit consent upgrades
 
 The [complete feature catalog and coverage matrix](FEATURE_COVERAGE.md) documents
 every one of the 73 capabilities, its source, meaning and exclusions. v2 has
@@ -82,7 +114,7 @@ every one of the 73 capabilities, its source, meaning and exclusions. v2 has
 forbid `used`. v1 remains unchanged with its 19 pairs. No new counters, free-form
 values or visitor observations. Both applications ship identical catalogs.
 
-`consent` is a v2-only signed command with exactly
+The original v2 `consent` is a signed command with exactly
 `{ "consent_version": "usage-consent.v2" }`. It upgrades an existing v1
 installation, never another identity, and is limited to one accepted upgrade
 (at most one per day). Same-packet retries return the original receipt; a second
@@ -130,7 +162,7 @@ capability names, never paths, user/event IDs, times, counts, or request values.
 Gallery layouts are the set of controlled enums applied to events, inspected
 only during admin-triggered reporting: grid, masonry, carousel, timeline,
 mosaic, gallery-premium, gallery-story, other. Unknown values become other.
-No event identifiers or counts are sent. Public, gallery, visitor, and customer
+No event identifiers or per-layout counts are sent. v3 adds only the two separate installation inventory totals defined above. Public, gallery, visitor, and customer
 portal requests never set markers or cause reports.
 
 ## Inspection, publication, and deletion
@@ -148,7 +180,7 @@ portal requests never set markers or cause reports.
   are limited to 366 periods; choose weeks/months for longer histories.
   Responses include `revision`, `available` date bounds and `points` with period
   start, clipped `from`/`to`, total `reports`, unique `reporters`, feature numerators
-  and reported denominators, and version/layout/schema counts. Weeks start Monday.
+  and reported denominators, gallery/photo inventory totals and denominators, and version/layout/schema counts. Weeks start Monday.
   One latest report **within each period** per reporter contributes to signals
   and distributions. Report count includes all reports in the period. Empty
   periods have zero reporters/reports and zero denominators (unknown percentages).

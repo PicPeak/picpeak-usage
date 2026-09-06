@@ -33,13 +33,14 @@ function report(now, features = {}) {
         { ...p.emptyFeatures()[key], ...features[key] },
       ]),
     ),
+    inventory: { galleries: 0, photos: 0 },
     gallery_layouts: ["grid"],
   };
 }
 async function register(c, now) {
   const identity = p.generateIdentity();
   const packet = p.makePacket(identity, "register", 0, {
-    consent_version: "usage-consent.v2",
+    consent_version: "usage-consent.v3",
   });
   const receipt = await c.receive(
     p.signPacket(packet, identity, new Date(now)),
@@ -152,7 +153,7 @@ test("reject tampering, unknown fields, forged ownership, stale signatures and d
       identity,
       "register",
       0,
-      { consent_version: "usage-consent.v2" },
+      { consent_version: "usage-consent.v3" },
       clock.value,
     ),
     "IDENTITY_CONFLICT",

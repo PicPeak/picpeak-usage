@@ -189,3 +189,19 @@ TEST_DATABASE_URL. It requires the real client integration, PostgreSQL checks
 and browser regression tests instead of accepting skipped integration as green.
 The GitHub workflow checks the explicitly configured PicPeak client ref; update
 PICPEAK_TEST_REF when the feature moves to the main release branch.
+
+### usage.v3 rollout
+
+Deploy the collector with v1/v2/v3 support first, then the client. No database
+migration is needed: inventories and additional booleans use existing signed
+report/projection storage. Verify `/api/health` lists all three schemas and
+`/schema/features.v3.json` exposes 86 features and exactly two inventory totals.
+
+Existing v1/v2 participation continues at its previous scope until explicit v3
+consent. Do not backfill markers, counts, or consent. Lost receipts keep the
+client on the old scope until a verified retry; disabling deletes all versions.
+
+After a v3 opt-in, do not roll back to a client that does not understand v3
+consent. Roll back using a build that retains the v3 protocol or disable
+participation first. Keep v1/v2 validators and public catalogs available for
+older clients and immutable historical exports.

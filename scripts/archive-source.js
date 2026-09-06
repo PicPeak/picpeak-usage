@@ -32,6 +32,7 @@ const files = [
   "docs/OPERATIONS.md",
   "docs/PROTOCOL.md",
   "docs/usage-coverage.v2.json",
+  "docs/usage-coverage.v3.json",
   "scripts",
 ];
 // Builds run outside Git too (Docker and downloaded source archives). Do not

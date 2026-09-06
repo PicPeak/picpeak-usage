@@ -35,7 +35,7 @@ contributions and are excluded. Maintainer read access does not authorize public
 or marketing publication of feedback.
 
 Participants and maintainers can explore daily, weekly or monthly UTC histories
-of reporting installations, report counts, capability configuration/use, versions,
+of reporting installations, report counts, capability configuration/use, gallery/photo totals, versions,
 layouts and schemas. Each installation contributes its last report **within**
 each period; gaps are not carried forward and reporting more often gives no
 additional weight. Feature percentages use per-field denominators. Usage means
@@ -58,16 +58,11 @@ Every build includes /source.tar.gz containing a fixed allowlist of application 
 
 ## Contract and verification
 
-The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schemas are served at /schema/usage.v1.json and /schema/usage.v2.json, with the EN/DE catalog at /schema/features.v2.json. PicPeak carries byte-identical protocol/catalog files in backend/src/usage/.
+The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schemas are served at `/schema/usage.v1.json`, `/schema/usage.v2.json` and `/schema/usage.v3.json`, with the current EN/DE catalog at `/schema/features.v3.json`. PicPeak carries byte-identical protocol/catalog files in `backend/src/usage/`.
 
-The [full coverage matrix](docs/FEATURE_COVERAGE.md) lists all 73 capabilities,
-their exact meaning, all reviewed route families/flags and privacy exclusions.
-v2 adds 54 capabilities to the original 19: 56 configured/used pairs and 17
-configuration-only signals. No visitor behavior, user profiles, counts or content.
-Existing participants stay on v1 until explicit signed v2 consent; the upgrade
-preserves raw history and resets local usage markers only after confirmation.
-Deploy the collector first, then PicPeak migration 205/client. Mixed-version
-aggregates use per-field reported denominators; absent does not mean unused.
+The [full coverage matrix](docs/FEATURE_COVERAGE.md) covers 86 capabilities: 63 configured/used pairs and 23 configuration-only signals. ML face recognition is included without biometric results. v3 adds 13 specific capabilities, including invoice import, plus exactly two installation inventory totals: stored galleries and non-video photo records, including drafts and retained archived records. No contents, per-gallery breakdowns, visitor behavior or identities.
+
+Existing v1/v2 participants retain their previous scope until explicit signed v3 consent. Upgrading preserves identity and raw history, restarts local usage markers after confirmation, and never collects new totals before that confirmation. Counts and features have per-field reporting denominators; older missing values are unknown, not zero.
 
 ```sh
 npm test

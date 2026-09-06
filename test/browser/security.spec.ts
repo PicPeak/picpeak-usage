@@ -25,12 +25,13 @@ const test = base.extend<{ collector: any }>({
           identity,
         ),
       );
-    await send("register", 0, { consent_version: "usage-consent.v2" });
+    await send("register", 0, { consent_version: "usage-consent.v3" });
     const iso = new Date().toISOString();
     await send("report", 1, {
       picpeak_version: "1.2.3",
       report_date: iso.slice(0, 10),
       generated_at: iso,
+      inventory: { galleries: 0, photos: 0 },
       gallery_layouts: ["grid"],
       features: Object.fromEntries(
         p.FEATURE_KEYS.map((key: string) => [
@@ -80,12 +81,12 @@ async function unlock(page: Page, collector: any) {
   ).toBeVisible();
 }
 
-test('all v2 definitions are public in EN/DE and config-only use is never shown as zero adoption', async ({ page, collector }) => {
+test('all v3 definitions are public in EN/DE and config-only use is never shown as zero adoption', async ({ page, collector }) => {
   await page.goto(`${collector.url}/transparency`);
   const catalog = page.locator('#feature-catalog');
-  await expect(catalog.locator('details')).toHaveCount(73);
+  await expect(catalog.locator('details')).toHaveCount(86);
   await catalog.getByLabel('Language / Sprache').selectOption('de');
-  await expect(catalog.getByRole('heading')).toHaveText('Alle 73 Funktionssignale');
+  await expect(catalog.getByRole('heading', { level: 2 })).toHaveText('Alle 86 Funktionssignale');
   await catalog.getByRole('searchbox').fill('gallery_feedback_likes');
   await expect(catalog.locator('details')).toHaveCount(1);
   await catalog.locator('summary').click();
@@ -277,7 +278,7 @@ test("S04: bounded public lists remain fully navigable", async ({
 
 async function seedHistory(collector: any) {
   const second = p.generateIdentity();
-  await collector.c.receive(p.signPacket(p.makePacket(second, "register", 0, { consent_version: "usage-consent.v2" }), second));
+  await collector.c.receive(p.signPacket(p.makePacket(second, "register", 0, { consent_version: "usage-consent.v3" }), second));
   const date = (ago: number) => new Date(Date.now() - ago * 86400000).toISOString().slice(0, 10);
   for (const [identity, ago, used] of [
     [collector.identity, 60, false], [collector.identity, 2, false],
@@ -285,6 +286,7 @@ async function seedHistory(collector: any) {
   ] as const) {
     const envelope = p.signPacket(p.makePacket(identity, "report", 1, {
       picpeak_version: ago > 1 ? "1.1.0" : "1.2.3", report_date: date(ago),
+      inventory: { galleries: 0, photos: 0 },
       generated_at: `${date(ago)}T12:00:00.000Z`, gallery_layouts: ["grid"],
       features: { ...p.emptyFeatures(), crm: { configured: used, used } },
     }), identity);
@@ -296,6 +298,42 @@ async function seedHistory(collector: any) {
   await collector.c.bumpRevision(collector.db);
   return { second, date };
 }
+
+for (const width of [1280, 390]) test(`inventory at ${width}px: totals, unknown history, own scope and German labels`, async ({ page, collector }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  const { date } = await seedHistory(collector);
+  // Give the second reporter a nonzero inventory today; the original reporter
+  // has an explicitly reported zero. Make the earliest retained report v2 so
+  // the graph must show a gap, not zero, before inventory consent existed.
+  const rows = await collector.db('reports').select('*');
+  for (const row of rows) {
+    const e = JSON.parse(row.raw);
+    if (row.report_date === date(60)) {
+      e.packet.schema_version = 'usage.v2';
+      e.packet.payload.features = p.emptyFeatures('usage.v2');
+      delete e.packet.payload.inventory;
+    } else if (row.report_date === date(0) && row.installation_id !== collector.identity.installation_id) {
+      e.packet.payload.inventory = { galleries: 12, photos: 125 };
+    }
+    await collector.db('reports').where({ packet_id: row.packet_id }).update({ raw: JSON.stringify(e) });
+  }
+  await collector.c.bumpRevision(collector.db);
+  await unlock(page, collector);
+  const chart = page.locator('.usage-history');
+  await chart.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('photos');
+  await chart.getByText('Show values as a table', { exact: true }).click();
+  await expect(chart.getByRole('row').last().getByRole('cell').nth(3)).toHaveText('125');
+  await expect(chart.getByRole('row').last().getByRole('cell').nth(4)).toHaveText('2');
+  await expect(chart.getByRole('combobox', { name: 'Display', exact: true })).toHaveCount(0);
+  await chart.getByRole('combobox', { name: 'Reporters', exact: true }).selectOption('own');
+  await expect(chart.getByRole('row').last().getByRole('cell').nth(3)).toHaveText('0');
+  await chart.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('all');
+  await expect(chart.getByRole('row').nth(1).getByRole('cell').nth(3)).toHaveText('Not reported');
+  await chart.getByLabel('Language / Sprache').selectOption('de');
+  await expect(chart.getByRole('columnheader', { name: 'Gespeicherte Fotoeinträge', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await chart.screenshot({ path: testInfo.outputPath(`inventory-${width}.png`) });
+});
 
 for (const width of [1280, 390]) {
   test(`history at ${width}px: participant compares all reporters with own and exports the complete selected range`, async ({ page, collector }, testInfo) => {

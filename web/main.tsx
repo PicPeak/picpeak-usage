@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRequestScope } from "./useRequestScope";
 import { FeatureCatalog } from "./FeatureCatalog";
 import { History } from "./History";
+import { InventorySummary } from "./InventorySummary";
 import { MaintainerData } from "./MaintainerData";
 import { LanguageSelect, messages, type Language } from "./historyLocale";
 import { createRoot } from "react-dom/client";
@@ -210,7 +211,7 @@ function Overview({
             <p>
               Each participating installation sends one signed daily report:
               which capabilities are configured and which were used, as yes/no.
-              No visitor tracking, no counts, no names.
+              Feature signals and two inventory totals. No visitor tracking or names.
             </p>
           </div>
           <div className="prose">
@@ -286,6 +287,7 @@ function Overview({
           included.
         </div>
       )}
+      <InventorySummary inventory={data.inventory} />
       <History token={credential} />
       <div className="dashboard-grid">
         <section className="panel adoption" id="adoption">
@@ -762,34 +764,37 @@ function Transparency() {
           <p>
             A pseudonymous installation fingerprint, schema version, packet ID
             and sequence, signature metadata, PicPeak version, UTC report date,
-            generation time, feature booleans, and controlled gallery layout
-            values.
+            generation time, feature booleans, controlled gallery layout
+            values, and (with v3 consent) two installation totals: stored galleries
+            and photo records excluding videos. Drafts and retained archived records are included.
           </p>
           <p>
             Configured means the capability is enabled or has relevant
             configuration; built-in capabilities mean available, not used.
             Used means an allowlisted successful admin capability operation
             since consent to the current schema. v1 measures since joining;
-            explicitly upgrading to v2 restarts local markers. It is a yes/no signal,
+            explicitly upgrading the schema restarts local markers. It is a yes/no signal,
             never a frequency. Configuration-only fields omit used entirely.
           </p>
-          <p>Both schema versions remain supported. Existing participants stay on v1
-            until they explicitly consent to v2 in PicPeak. The full catalog below
-            explains all 73 fields, including the original 19.</p>
+          <p>All three schema versions remain supported. Existing v1/v2 participants
+            keep their previous scope until they explicitly consent to v3 in PicPeak.
+            The full catalog below explains all 86 capability signals and two inventory totals.</p>
           <p>
             Layouts: grid, masonry, carousel, timeline, mosaic, gallery-premium,
             gallery-story, or other. We never include the number of galleries
             using them.
           </p>
-          <a className="btn" href="/schema/usage.v2.json">JSON schema: usage.v2</a>{" "}
+          <a className="btn" href="/schema/usage.v3.json">JSON schema: usage.v3</a>{" "}
+          <a className="btn" href="/schema/usage.v2.json">Legacy schema: usage.v2</a>{" "}
           <a className="btn" href="/schema/usage.v1.json">Legacy schema: usage.v1</a>
         </section>
         <div className="side-panels">
           <section className="panel prose">
             <h2>What we do not collect</h2>
             <p>
-              No gallery visitor tracking, clickstreams, photo or gallery
-              counts, emails, domains, filenames, customer names, location, or
+              No gallery visitor tracking, clickstreams, per-gallery or per-photo
+              breakdowns, image contents, biometric results, financial values,
+              emails, domains, filenames, customer names, location, or
               configuration secrets in automatic reports.
             </p>
             <p>

@@ -2,11 +2,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, download, type Summary } from "./api";
 import { useRequestScope } from "./useRequestScope";
 import { LanguageSelect, messages, type Language } from "./historyLocale";
-import catalog from "../protocol/features.v2.json";
+import catalog from "../protocol/features.v3.json";
 
 type Point = Pick<
   Summary,
-  "features" | "versions" | "layouts" | "schema_versions"
+  "features" | "versions" | "layouts" | "schema_versions" | "inventory"
 > & {
   date: string;
   from: string;
@@ -25,6 +25,8 @@ type HistoryData = {
 type Metric =
   | "reporters"
   | "reports"
+  | "galleries"
+  | "photos"
   | "configured"
   | "used"
   | "versions"
@@ -128,7 +130,8 @@ export function History({
       ].sort()
     : [];
   const chosen = categories.includes(category) ? category : categories[0] || "";
-  const counted = metric === "reports" || metric === "reporters";
+  const inventoryMetric = metric === "galleries" || metric === "photos";
+  const counted = metric === "reports" || metric === "reporters" || inventoryMetric;
   const usesPercent = !counted && percent;
   const label = featureMetric
     ? `${t[metric]} · ${catalog.features[feature as keyof typeof catalog.features].name[language]}`
@@ -144,6 +147,9 @@ export function History({
     } else if (distribution) {
       value = point[distribution][chosen] || 0;
       denominator = point.reporters;
+    } else if (inventoryMetric) {
+      value = point.inventory?.[metric]?.total || 0;
+      denominator = point.inventory?.[metric]?.reported || 0;
     } else {
       value = point[metric as "reporters" | "reports"];
       denominator = point.reporters;
@@ -153,7 +159,7 @@ export function History({
       count: value,
       denominator,
       value:
-        !counted && !denominator
+        (!counted || inventoryMetric) && !denominator
           ? null
           : usesPercent
             ? (value / denominator) * 100
@@ -285,6 +291,8 @@ export function History({
               [
                 "reporters",
                 "reports",
+                "galleries",
+                "photos",
                 "configured",
                 "used",
                 "versions",
@@ -340,6 +348,7 @@ export function History({
         )}
       </div>
       {featureMetric && <p className="caption">{t.semantics}</p>}
+      {inventoryMetric && <p className="caption">{t.inventorySemantics}</p>}
       {error ? (
         <div className="notice error" role="alert">
           {error.startsWith("INVALID_HISTORY") ||
@@ -419,6 +428,7 @@ export function History({
                         <title>
                           {point.from} – {point.to}: {format(value)}
                           {!counted ? ` (${count}/${denominator})` : ""}
+                          {inventoryMetric ? ` · ${t.inventoryReported}: ${denominator}` : ""}
                         </title>
                       </circle>
                     ),
@@ -445,6 +455,7 @@ export function History({
                     <th>{t.reporters}</th>
                     <th>{t.reports}</th>
                     <th>{label}</th>
+                    {inventoryMetric && <th>{t.inventoryReported}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -462,6 +473,7 @@ export function History({
                           denominator > 0 &&
                           ` (${count}/${denominator})`}
                       </td>
+                      {inventoryMetric && <td>{denominator}</td>}
                     </tr>
                   ))}
                 </tbody>
