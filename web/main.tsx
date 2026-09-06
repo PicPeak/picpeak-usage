@@ -365,7 +365,7 @@ function Overview({
               ))}
             </div>
             {!Object.keys(data.versions).length && (
-              <p className="muted small">Waiting for the first report.</p>
+              <p className="muted small">{data.installations ? messages.en.unknown : "Waiting for the first report."}</p>
             )}
           </section>
           <section className="panel">
@@ -379,8 +379,11 @@ function Overview({
                 </div>
               ))}
             </div>
+            {!Object.keys(data.layouts).length && data.layouts_reported === 0 && data.installations > 0 && (
+              <p className="muted small">{messages.en.unknown}</p>
+            )}
             <p className="caption">
-              An installation can use several layouts. Gallery counts are never
+              An installation can use several layouts. Per-layout gallery counts are never
               reported.
             </p>
           </section>
@@ -778,7 +781,8 @@ function Transparency() {
           </p>
           <p>All three schema versions remain supported. Existing v1/v2 participants
             keep their previous scope until they explicitly consent to v3 in PicPeak.
-            The full catalog below explains all 86 capability signals and two inventory totals.</p>
+            The full catalog below explains all 86 capability signals and two inventory totals.
+            Older and partial reports remain supported; omitted or null measurements are unknown.</p>
           <p>
             Layouts: grid, masonry, carousel, timeline, mosaic, gallery-premium,
             gallery-story, or other. We never include the number of galleries

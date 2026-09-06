@@ -205,3 +205,18 @@ After a v3 opt-in, do not roll back to a client that does not understand v3
 consent. Roll back using a build that retains the v3 protocol or disable
 participation first. Keep v1/v2 validators and public catalogs available for
 older clients and immutable historical exports.
+
+### Compatible report reception
+
+Deploy the compatible collector to accept partial v1/v2/v3 reports; existing
+PicPeak clients need no upgrade or new consent for their existing report scope.
+No database migration or backfill is required. The client still sends complete
+reports; its shared protocol copy includes separate strict writer and tolerant
+receiver validation. The receiver does not remove authentication, consent,
+sequence or quota requirements.
+
+Once partial reports have been accepted, keep a collector version that supports
+them: earlier aggregators assumed every report contained features and layouts.
+Do not rewrite signed historical reports to fill missing fields during rollback.
+The compatibility regression suite runs on SQLite and PostgreSQL and checks
+unknown values, delayed reports, unchanged raw exports and opt-out removal.

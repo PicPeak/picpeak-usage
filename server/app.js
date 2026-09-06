@@ -10,6 +10,7 @@ const { history } = require("./history");
 const { reporters, pageOptions } = require("./maintainer");
 const {
   envelopeSchemas,
+  ingressEnvelopeSchemas,
   CATALOGS,
   CURRENT_SCHEMA_VERSION,
   MAX_BYTES,
@@ -116,6 +117,8 @@ function createApp({
   );
   for (const [version, schema] of Object.entries(envelopeSchemas))
     app.get(`/schema/${version}.json`, (_req, res) => res.json(schema));
+  for (const [version, schema] of Object.entries(ingressEnvelopeSchemas))
+    app.get(`/schema/ingress/${version}.json`, (_req, res) => res.json(schema));
   for (const [version, catalog] of Object.entries(CATALOGS))
     app.get(`/schema/features.${version.split(".")[1]}.json`, (_req, res) => res.json(catalog));
   app.post(

@@ -6,6 +6,8 @@ export interface Summary {
   features: Record<string, { configured: number; used: number; reported: number; used_reported: number }>;
   versions: Record<string, number>;
   layouts: Record<string, number>;
+  versions_reported: number;
+  layouts_reported: number;
   history: { date: string; reports: number }[];
 }
 export interface Feedback {

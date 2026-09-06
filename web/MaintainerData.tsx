@@ -10,7 +10,7 @@ type Reporter = {
   reports: number;
   first_report: string | null;
   last_report: string | null;
-  latest: { picpeak_version: string } | null;
+  latest: { picpeak_version?: string | null } | null;
 };
 type ReporterPage = {
   records: Reporter[];

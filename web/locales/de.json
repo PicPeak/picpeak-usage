@@ -71,5 +71,6 @@
   "inventorySemantics": "Summe des letzten Berichts je Reporter im Zeitraum, einschließlich Entwürfen und archivierten Einträgen. Videos zählen nicht als Fotos. Fehlende Werte älterer Schemata sind unbekannt; Änderungen der teilnehmenden Reporter verändern die Summe.",
   "inventoryReported": "Reporter mit Bestandszahlen",
   "inventorySummary": "Summe des neuesten Berichts je Reporter. Keine Aufschlüsselung nach Galerien, keine Dateinamen oder Bildinhalte.",
-  "inventoryCatalog": "Die Gesamtzahlen beschreiben aktuell gespeicherte Datenbankeinträge, keine Upload-Aktivität oder eindeutigen Dateien. Vorschaubilder und Videos zählen nicht zur Fotoanzahl. Nur diese beiden Zahlen verlassen die Installation."
+  "inventoryCatalog": "Die Gesamtzahlen beschreiben aktuell gespeicherte Datenbankeinträge, keine Upload-Aktivität oder eindeutigen Dateien. Vorschaubilder und Videos zählen nicht zur Fotoanzahl. Nur diese beiden Zahlen verlassen die Installation.",
+  "distributionSemantics": "Anteile berücksichtigen nur Reporter, die das gewählte Feld geliefert haben. Fehlende oder null-Felder sind unbekannt; eine leere Layout-Liste bedeutet keine gemeldeten Layouts."
 }

@@ -6,7 +6,7 @@ import catalog from "../protocol/features.v3.json";
 
 type Point = Pick<
   Summary,
-  "features" | "versions" | "layouts" | "schema_versions" | "inventory"
+  "features" | "versions" | "layouts" | "schema_versions" | "inventory" | "versions_reported" | "layouts_reported"
 > & {
   date: string;
   from: string;
@@ -146,7 +146,8 @@ export function History({
       denominator = metric === "used" ? signal.used_reported : signal.reported;
     } else if (distribution) {
       value = point[distribution][chosen] || 0;
-      denominator = point.reporters;
+      denominator = distribution === "schema_versions" ? point.reporters
+        : point[`${distribution}_reported`] ?? point.reporters;
     } else if (inventoryMetric) {
       value = point.inventory?.[metric]?.total || 0;
       denominator = point.inventory?.[metric]?.reported || 0;
@@ -348,6 +349,7 @@ export function History({
         )}
       </div>
       {featureMetric && <p className="caption">{t.semantics}</p>}
+      {distribution && <p className="caption">{t.distributionSemantics}</p>}
       {inventoryMetric && <p className="caption">{t.inventorySemantics}</p>}
       {error ? (
         <div className="notice error" role="alert">

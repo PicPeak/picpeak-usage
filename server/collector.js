@@ -1,7 +1,7 @@
 "use strict";
 const crypto = require("node:crypto");
 const {
-  verifyEnvelope,
+  verifyReceivedEnvelope,
   digest,
   canonical,
   ProtocolError,
@@ -37,7 +37,7 @@ class Collector {
 
   async receive(envelope) {
     const now = this.now();
-    const packet = verifyEnvelope(envelope, now);
+    const packet = verifyReceivedEnvelope(envelope, now);
     const id = packet.installation_id;
     const packetDigest = digest(canonical(packet));
     const receipt = {
@@ -574,6 +574,7 @@ class Collector {
     );
     let after = "";
     let installations = 0;
+    let versionsReported = 0, layoutsReported = 0;
     for (;;) {
       const rows = await db("snapshots")
         .select("installation_id", "projection")
@@ -587,10 +588,12 @@ class Collector {
         addInventory(inventory, report);
         const schemaVersion = report.schema_version || "usage.v1";
         schemaVersions[schemaVersion] = (schemaVersions[schemaVersion] || 0) + 1;
-        versions[report.picpeak_version] =
-          (versions[report.picpeak_version] || 0) + 1;
+        if (typeof report.picpeak_version === "string") {
+          versions[report.picpeak_version] = (versions[report.picpeak_version] || 0) + 1;
+          versionsReported++;
+        }
         for (const key of FEATURE_KEYS) {
-          const signal = report.features[key];
+          const signal = report.features?.[key];
           // An older schema did not ask this question. Absence is NOT false.
           if (typeof signal?.configured === "boolean") {
             features[key].configured += Number(signal.configured);
@@ -601,7 +604,8 @@ class Collector {
             features[key].used_reported++;
           }
         }
-        for (const layout of report.gallery_layouts)
+        if (Array.isArray(report.gallery_layouts)) layoutsReported++;
+        for (const layout of report.gallery_layouts || [])
           layouts[layout] = (layouts[layout] || 0) + 1;
       }
       after = rows.at(-1).installation_id;
@@ -619,6 +623,8 @@ class Collector {
       features,
       versions,
       layouts,
+      versions_reported: versionsReported,
+      layouts_reported: layoutsReported,
       history: history.map((r) => ({
         date: r.report_date,
         reports: Number(r.reports),
