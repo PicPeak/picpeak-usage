@@ -416,8 +416,13 @@ class Collector {
   }
 
   rawPacket(row) {
+    const envelope = JSON.parse(row.raw);
     return {
-      envelope: JSON.parse(row.raw),
+      // Some clients inspect packet.action directly when counting exported
+      // reports. Preserve the full original envelope and expose its packet
+      // alongside the receipt metadata as a backwards-compatible alias.
+      packet: envelope.packet,
+      envelope,
       received_at: row.received_at,
       signature_verified: true,
     };

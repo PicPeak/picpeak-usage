@@ -23,6 +23,11 @@ and the data-access disclosure support English and German.
 API details and export record types are documented in [PROTOCOL.md](PROTOCOL.md).
 No schema migration, additional collection or new client protocol is required.
 Deploy the updated collector/frontend together using the normal build process.
+Raw report responses also expose `packet` as an alias of `envelope.packet` so
+the current PicPeak client counts exported reports correctly. The signed
+envelope remains unchanged. The shared catalog reflects the client's clarified
+image-protection signal, and retry tests use the explicit retry API when
+bypassing unattended backoff.
 
 ## Verification, 2026-09-06
 

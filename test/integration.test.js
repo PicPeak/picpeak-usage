@@ -198,7 +198,8 @@ test(
     transport.loseReceipt = true;
     await service.tick();
     assert.equal((await service.status()).pending_action, "report");
-    await service.tick();
+    // Explicit retries bypass the client's unattended retry backoff.
+    await service.tick({ force: true });
     assert.equal((await service.export()).packets.length, 1);
     transport.offline = true;
     await service.disable();
@@ -210,10 +211,10 @@ test(
     assert.equal((await c.lookup(pending.installation_id)).packets.length, 1);
     transport.offline = false;
     transport.loseReceipt = true;
-    await service.tick();
+    await service.tick({ force: true });
     assert.equal((await service.status()).status, "deletion_pending");
     await assert.rejects(c.lookup(pending.installation_id));
-    await service.tick();
+    await service.tick({ force: true });
     assert.equal((await service.status()).status, "disabled");
     assert.equal(
       (await local("product_usage_state").first()).private_key_encrypted,
@@ -443,13 +444,13 @@ test("v1 persists until signed v2 consent is acknowledged, including restart aft
   assert.equal(Object.keys((await service.preview()).features).length, 19);
   transport.offline = false;
   transport.loseReceipt = true;
-  await service.tick();
+  await service.tick({ force: true });
   assert.equal((await c.db("installations").where({ id: identity }).first()).consent_version, "usage-consent.v2");
   assert.equal((await service.status()).schema_version, "usage.v1");
   await service.markUsed(["video_uploads"]);
   assert.ok(!(await local("product_usage_markers").pluck("feature")).includes("video_uploads"));
   const restarted = new UsageService(local, options);
-  await restarted.tick();
+  await restarted.tick({ force: true });
   assert.equal((await restarted.status()).schema_version, "usage.v2");
   assert.equal((await restarted.status()).installation_id, identity);
   assert.deepEqual(await local("product_usage_markers").pluck("feature"), []);

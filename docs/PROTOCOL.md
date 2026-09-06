@@ -169,6 +169,8 @@ portal requests never set markers or cause reports.
   bearer read credential. Both include a dated export receipt. Each logical
   usage report appears once, exactly as first received; transport retries are
   deduplicated and rejected attempts/other operation types are not usage reports.
+  Each report retains the original signed `envelope`; `packet` is an alias of
+  `envelope.packet` for clients inspecting action/type metadata directly.
 - `POST /api/participant/packets`: bounded UI preview. Body `installation_id`,
   optionally `after` (last UTC report date) and `revision` from the previous page.
   Returns up to 200 packets, `next` and `revision`. On `DATASET_CHANGED`, restart.
