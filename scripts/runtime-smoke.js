@@ -92,13 +92,14 @@ async function main() {
       assert.equal(response.status, 200, await response.clone().text());
       return response.json();
     };
-    await send("register", 0, { consent_version: "usage-consent.v2" });
+    await send("register", 0, { consent_version: p.CURRENT_CONSENT_VERSION });
     const now = new Date().toISOString();
     await send("report", 1, {
       picpeak_version: "1.0.0",
       report_date: now.slice(0, 10),
       generated_at: now,
       gallery_layouts: ["grid"],
+      inventory: { galleries: 3, photos: 12 },
       features: Object.fromEntries(
         Object.entries(p.emptyFeatures()),
       ),
@@ -110,14 +111,14 @@ async function main() {
     base = `http://${docker("port", name, "3190/tcp")}`;
     await healthy();
     const headers = { Authorization: `Bearer ${identity.installation_id}` };
-    assert.equal(
-      (
-        await (
-          await fetch(`${base}/api/participant/summary`, { headers })
-        ).json()
-      ).installations,
-      1,
-    );
+    const summary = await (
+      await fetch(`${base}/api/participant/summary`, { headers })
+    ).json();
+    assert.equal(summary.installations, 1);
+    assert.deepEqual(summary.inventory, {
+      galleries: { total: 3, reported: 1 },
+      photos: { total: 12, reported: 1 },
+    });
     const raw = await (
       await fetch(`${base}/api/participant/raw-export`, { headers })
     ).json();
