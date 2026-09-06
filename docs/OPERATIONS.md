@@ -220,3 +220,16 @@ them: earlier aggregators assumed every report contained features and layouts.
 Do not rewrite signed historical reports to fill missing fields during rollback.
 The compatibility regression suite runs on SQLite and PostgreSQL and checks
 unknown values, delayed reports, unchanged raw exports and opt-out removal.
+
+### usage.v4 rollout
+
+Deploy the collector before releasing/enabling v4 clients. Check `/api/health`
+for v1/v2/v3/v4 in `supported_schemas`, and the v4 sender, ingress and catalog
+endpoints for JSON. Existing v1/v2/v3 senders must still work unchanged.
+
+v4 changes the downloads question only after fresh explicit consent. Do not
+rename, invert, delete or backfill historical values. Never mutate an immutable
+pending packet to fit a newer catalog: old schemas remain supported for retries,
+including when the original receipt was lost. Keep a v4-aware collector after
+accepting v4 reports. No database migration is needed. Issue #9 rollout acceptance
+requires live v4 validation; merging source alone does not deploy this service.

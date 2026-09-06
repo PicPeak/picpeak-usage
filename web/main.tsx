@@ -273,7 +273,7 @@ function Overview({
             <small>Retained while participation is active</small>
           </li>
           <li>
-            <span className="label">Documented capabilities</span>
+            <span className="label">{messages.en.allCapabilities}</span>
             <strong>{Object.keys(data.features).length}</strong>
             <small>Configuration / general capability use, never click counts</small>
           </li>
@@ -768,7 +768,7 @@ function Transparency() {
             A pseudonymous installation fingerprint, schema version, packet ID
             and sequence, signature metadata, PicPeak version, UTC report date,
             generation time, feature booleans, controlled gallery layout
-            values, and (with v3 consent) two installation totals: stored galleries
+            values, and (with v3 or v4 consent) two installation totals: stored galleries
             and photo records excluding videos. Drafts and retained archived records are included.
           </p>
           <p>
@@ -779,16 +779,18 @@ function Transparency() {
             explicitly upgrading the schema restarts local markers. It is a yes/no signal,
             never a frequency. Configuration-only fields omit used entirely.
           </p>
-          <p>All three schema versions remain supported. Existing v1/v2 participants
-            keep their previous scope until they explicitly consent to v3 in PicPeak.
-            The full catalog below explains all 86 capability signals and two inventory totals.
+          <p>All four schema versions remain supported. Existing v1/v2/v3 participants
+            keep their previous scope until they explicitly consent to v4 in PicPeak.
+            The current v4 catalog explains 86 capability signals and two inventory totals.
+            Historical views additionally preserve the retired v2/v3 allowed-downloads question.
             Older and partial reports remain supported; omitted or null measurements are unknown.</p>
           <p>
             Layouts: grid, masonry, carousel, timeline, mosaic, gallery-premium,
             gallery-story, or other. We never include the number of galleries
             using them.
           </p>
-          <a className="btn" href="/schema/usage.v3.json">JSON schema: usage.v3</a>{" "}
+          <a className="btn" href="/schema/usage.v4.json">JSON schema: usage.v4</a>{" "}
+          <a className="btn" href="/schema/usage.v3.json">Legacy schema: usage.v3</a>{" "}
           <a className="btn" href="/schema/usage.v2.json">Legacy schema: usage.v2</a>{" "}
           <a className="btn" href="/schema/usage.v1.json">Legacy schema: usage.v1</a>
         </section>

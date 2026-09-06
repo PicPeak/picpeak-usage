@@ -29,7 +29,7 @@ jobs:
         with:
           repository: PicPeak/picpeak
           # Exact compatible client; remains reproducible after branch cleanup.
-          ref: 7ca783f89b8ed735ec3e69306a837c0f40e0670b
+          ref: ef8a52f02c4afa10dbc5fccafb6030b1aedc936c
           path: picpeak
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

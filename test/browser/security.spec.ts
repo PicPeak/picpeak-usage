@@ -26,7 +26,7 @@ const test = base.extend<{ collector: any }>({
           identity,
         ),
       );
-    await send("register", 0, { consent_version: "usage-consent.v3" });
+    await send("register", 0, { consent_version: p.CURRENT_CONSENT_VERSION });
     const iso = new Date().toISOString();
     await send("report", 1, {
       picpeak_version: "1.2.3",
@@ -82,7 +82,7 @@ async function unlock(page: Page, collector: any) {
   ).toBeVisible();
 }
 
-test('all v3 definitions are public in EN/DE and config-only use is never shown as zero adoption', async ({ page, collector }) => {
+test('all v4 definitions are public in EN/DE and config-only use is never shown as zero adoption', async ({ page, collector }) => {
   await page.goto(`${collector.url}/transparency`);
   const catalog = page.locator('#feature-catalog');
   await expect(catalog.locator('details')).toHaveCount(86);
@@ -137,6 +137,37 @@ test('partial legacy reports do not dilute percentages or turn missing totals in
   await expect(ownHistory.locator('tbody tr').last()).toContainText('Not reported');
   await ownHistory.getByLabel('Language / Sprache').selectOption('de');
   await expect(ownHistory.locator('tbody tr').last()).toContainText('Nicht gemeldet');
+});
+
+test('old allowed-downloads and v4 restrictions stay separately selectable with honest history denominators', async ({ page, collector }) => {
+  const legacy = p.generateIdentity(), now = new Date();
+  for (const [action, sequence, payload] of [
+    ['register', 0, { consent_version: 'usage-consent.v3' }],
+    ['report', 1, { report_date: now.toISOString().slice(0, 10), generated_at: now.toISOString(), features: { gallery_downloads: { configured: true } } }],
+  ] as const) await collector.c.receive(signedEnvelope(p.makePacket(legacy, action, sequence, payload, 'usage.v3'), legacy, now));
+  await page.goto(`${collector.url}/transparency`);
+  const catalog = page.locator('#feature-catalog');
+  await catalog.getByRole('searchbox').fill('gallery_downloads');
+  await expect(catalog.locator('details')).toHaveCount(1);
+  await expect(catalog).toContainText('Gallery downloads restricted');
+  await unlock(page, collector);
+  await page.getByPlaceholder('Search features…').fill('gallery_downloads');
+  await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('configured');
+  await expect(page.locator('.feature-row')).toHaveCount(2);
+  await expect(page.locator('.feature-row').filter({ hasText: 'Gallery downloads restricted' })).toContainText('0 / 1 reported');
+  const chart = page.locator('.usage-history');
+  await chart.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('configured');
+  const feature = chart.getByRole('combobox', { name: 'Capability', exact: true });
+  await expect(feature.locator('option')).toHaveCount(87);
+  await chart.getByRole('combobox', { name: 'Display', exact: true }).selectOption('percent');
+  await chart.getByText('Show values as a table', { exact: true }).click();
+  await feature.selectOption('gallery_downloads');
+  await expect(chart.locator('tbody tr').last()).toContainText('100% (1/1)');
+  await feature.selectOption('gallery_downloads_restricted');
+  await expect(chart.locator('tbody tr').last()).toContainText('0% (0/1)');
+  await expect(chart).toContainText('Older values are never inverted or converted');
+  await chart.getByLabel('Language / Sprache').selectOption('de');
+  await expect(chart).toContainText('Galerie-Downloads eingeschränkt');
 });
 
 async function holdResponse(page: Page, pattern: string) {
@@ -315,7 +346,7 @@ test("S04: bounded public lists remain fully navigable", async ({
 
 async function seedHistory(collector: any) {
   const second = p.generateIdentity();
-  await collector.c.receive(p.signPacket(p.makePacket(second, "register", 0, { consent_version: "usage-consent.v3" }), second));
+  await collector.c.receive(p.signPacket(p.makePacket(second, "register", 0, { consent_version: p.CURRENT_CONSENT_VERSION }), second));
   const date = (ago: number) => new Date(Date.now() - ago * 86400000).toISOString().slice(0, 10);
   for (const [identity, ago, used] of [
     [collector.identity, 60, false], [collector.identity, 2, false],

@@ -1,5 +1,5 @@
 "use strict";
-const { FEATURE_KEYS, ProtocolError } = require("../protocol/protocol.cjs");
+const { ALL_FEATURE_KEYS, ProtocolError } = require("../protocol/protocol.cjs");
 const { readSnapshot } = require("./database");
 const { emptyInventory, addInventory } = require("./inventory");
 const DAY = 86400000;
@@ -126,7 +126,7 @@ async function history(
         reporters: 0,
         inventory: emptyInventory(),
         features: Object.fromEntries(
-          FEATURE_KEYS.map((key) => [
+          ALL_FEATURE_KEYS.map((key) => [
             key,
             {
               configured: 0,
@@ -180,7 +180,7 @@ async function history(
           const report = packet.payload;
           addInventory(point.inventory, report);
           point.reporters++;
-          for (const key of FEATURE_KEYS) {
+          for (const key of ALL_FEATURE_KEYS) {
             const signal = report.features?.[key];
             if (typeof signal?.configured === "boolean") {
               point.features[key].configured += Number(signal.configured);

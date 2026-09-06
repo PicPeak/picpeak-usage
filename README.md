@@ -59,16 +59,16 @@ Every build includes /source.tar.gz containing a fixed allowlist of application 
 ## Contract and verification
 
 Old and partial reports remain readable after upgrades. The collector supports
-v1/v2/v3 and treats omitted or null measurements as unknown. Freshly signed
+v1/v2/v3/v4 and treats omitted or null measurements as unknown. Freshly signed
 delayed reports keep their original reporting date. Separate reception schemas
-at `/schema/ingress/usage.v1.json` (also v2/v3) describe this compatibility;
+at `/schema/ingress/usage.v1.json` (also v2/v3/v4) describe this compatibility;
 the original complete sender schemas, consent and privacy boundaries stay fixed.
 
-The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schemas are served at `/schema/usage.v1.json`, `/schema/usage.v2.json` and `/schema/usage.v3.json`, with the current EN/DE catalog at `/schema/features.v3.json`. PicPeak carries byte-identical protocol/catalog files in `backend/src/usage/`.
+The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schemas are served at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json` and `/schema/usage.v4.json`, with the current EN/DE catalog at `/schema/features.v4.json`. PicPeak carries byte-identical protocol/catalog files in `backend/src/usage/`.
 
 The [full coverage matrix](docs/FEATURE_COVERAGE.md) covers 86 capabilities: 63 configured/used pairs and 23 configuration-only signals. ML face recognition is included without biometric results. v3 adds 13 specific capabilities, including invoice import, plus exactly two installation inventory totals: stored galleries and non-video photo records, including drafts and retained archived records. No contents, per-gallery breakdowns, visitor behavior or identities.
 
-Existing v1/v2 participants retain their previous scope until explicit signed v3 consent. Upgrading preserves identity and raw history, restarts local usage markers after confirmation, and never collects new totals before that confirmation. Counts and features have per-field reporting denominators; older missing values are unknown, not zero.
+Existing v1/v2/v3 participants retain their previous scope until explicit signed v4 consent. v4 replaces the allowed-downloads question with restricted downloads; old questions remain independently visible in history. Upgrading preserves identity and raw history, restarts local usage markers after confirmation, and never collects the new restriction signal before that confirmation. Counts and features have per-field reporting denominators; older missing values are unknown, not zero.
 
 ```sh
 npm test

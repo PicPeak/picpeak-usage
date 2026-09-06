@@ -1,5 +1,5 @@
 import { useState } from "react";
-import catalog from "../protocol/features.v3.json";
+import { catalog } from "./catalog";
 import { messages } from "./historyLocale";
 
 export function FeatureCatalog() {
@@ -21,11 +21,12 @@ export function FeatureCatalog() {
       </label>
     </div>
     <p>{german
-      ? "usage.v3: 63 Konfiguriert/Genutzt-Paare, 23 reine Konfigurationswerte und zwei Bestandszahlen. Funktionsmarker enthalten keine Person, Aktionshistorie oder Besucherbeobachtung. Integriert bedeutet verfügbar, nicht benutzt. Angenommene Aufträge gelten als gestartet, nicht zwingend abgeschlossen."
-      : "usage.v3: 63 configured/used pairs, 23 configuration-only booleans and two inventory totals. Capability markers contain no person, action history or visitor observation. Built-in means available, not used. Accepted jobs count as initiated, not necessarily completed."}</p>
+      ? "usage.v4: 63 Konfiguriert/Genutzt-Paare, 23 reine Konfigurationswerte und zwei Bestandszahlen. Funktionsmarker enthalten keine Person, Aktionshistorie oder Besucherbeobachtung. Integriert bedeutet verfügbar, nicht benutzt. Angenommene Aufträge gelten als gestartet, nicht zwingend abgeschlossen."
+      : "usage.v4: 63 configured/used pairs, 23 configuration-only booleans and two inventory totals. Capability markers contain no person, action history or visitor observation. Built-in means available, not used. Accepted jobs count as initiated, not necessarily completed."}</p>
     <p>{german
-      ? "v1 behält 19 und v2 behält 73 Signale ohne Bestandszahlen. Neue Signale und Gesamtzahlen werden erst nach ausdrücklicher v3-Zustimmung erfasst. Dabei beginnt der lokale Genutzt-Zeitraum neu. Nicht gemeldete Felder sind unbekannt, nicht false oder null Stück. Rohberichte behalten ihre ursprüngliche Version."
-      : "v1 keeps 19 and v2 keeps 73 signals without inventory totals. New signals and totals require explicit v3 consent, restarting the local used observation period. Unreported fields are unknown, not false or zero items. Raw reports retain their original version."}</p>
+      ? "v1/v2/v3 behalten ihren bisherigen Umfang unverändert. Erst die ausdrückliche v4-Zustimmung ersetzt die Frage nach erlaubten Downloads durch die Frage nach gesperrten Downloads. Dabei beginnt der lokale Genutzt-Zeitraum neu. Nicht gemeldete Felder sind unbekannt. Rohberichte behalten ihre ursprüngliche Version."
+      : "v1/v2/v3 keep their previous scope unchanged. Only explicit v4 consent replaces the question about allowed downloads with the question about restricted downloads, restarting the local used observation period. Unreported fields are unknown. Raw reports retain their original version."}</p>
+    <p>{messages[lang].downloadSignals}</p>
     <p className="notice">{messages[lang].accessDisclosure}</p>
     <section className="section">
       <h3>{messages[lang].inventoryTitle}</h3>
@@ -42,6 +43,6 @@ export function FeatureCatalog() {
         : german ? "Nur Konfiguration — tatsächliche Nutzung wird nicht erfasst." : "Configuration only — actual use is not collected."}</p>
     </details>)}
     {!entries.length && <p>{german ? "Keine passenden Funktionen." : "No matching capabilities."}</p>}
-    <p><a className="textlink ink" href="/schema/features.v3.json">JSON: features.v3</a></p>
+    <p><a className="textlink ink" href="/schema/features.v4.json">JSON: features.v4</a></p>
   </section>;
 }

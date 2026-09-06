@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, download, type Summary } from "./api";
 import { useRequestScope } from "./useRequestScope";
 import { LanguageSelect, messages, type Language } from "./historyLocale";
-import catalog from "../protocol/features.v3.json";
+import { historicalFeatures } from "./catalog";
 
 type Point = Pick<
   Summary,
@@ -134,7 +134,7 @@ export function History({
   const counted = metric === "reports" || metric === "reporters" || inventoryMetric;
   const usesPercent = !counted && percent;
   const label = featureMetric
-    ? `${t[metric]} · ${catalog.features[feature as keyof typeof catalog.features].name[language]}`
+    ? `${t[metric]} · ${historicalFeatures[feature as keyof typeof historicalFeatures].name[language]}`
     : distribution
       ? `${t[metric]} · ${chosen}`
       : t[metric];
@@ -190,7 +190,7 @@ export function History({
       ? t.unknown
       : `${value.toLocaleString(language, { maximumFractionDigits: 1 })}${usesPercent ? "%" : ""}`;
   const featureInfo =
-    catalog.features[feature as keyof typeof catalog.features];
+    historicalFeatures[feature as keyof typeof historicalFeatures];
   const configOnly = metric === "used" && featureInfo.used === null;
   useEffect(() => {
     if (!svg.current) return;
@@ -314,7 +314,7 @@ export function History({
               value={feature}
               onChange={(e) => setFeature(e.target.value)}
             >
-              {Object.entries(catalog.features).map(([key, value]) => (
+              {Object.entries(historicalFeatures).map(([key, value]) => (
                 <option key={key} value={key}>
                   {value.name[language]}
                 </option>
@@ -349,6 +349,7 @@ export function History({
         )}
       </div>
       {featureMetric && <p className="caption">{t.semantics}</p>}
+      {featureMetric && ["gallery_downloads", "gallery_downloads_restricted"].includes(feature) && <p className="caption">{t.downloadSignals}</p>}
       {distribution && <p className="caption">{t.distributionSemantics}</p>}
       {inventoryMetric && <p className="caption">{t.inventorySemantics}</p>}
       {error ? (

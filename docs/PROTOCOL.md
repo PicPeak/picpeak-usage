@@ -1,4 +1,4 @@
-# Versioned usage protocol (usage.v1 / usage.v2 / usage.v3)
+# Versioned usage protocol (usage.v1 / usage.v2 / usage.v3 / usage.v4)
 
 Implements the backend-signs/backend-sends decision in
 [#1110's transport follow-up](https://github.com/PicPeak/picpeak/issues/1110#issuecomment-5367220785).
@@ -7,16 +7,16 @@ Browser transport is not implemented. CORS is not authentication.
 ## Exact envelope
 
 `POST /api/envelopes` accepts at most 16 KiB of uncompressed JSON. The complete
-closed sender JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, and `/schema/usage.v3.json`.
-The current bilingual field catalog is at `/schema/features.v3.json`; `/schema/features.v2.json` retains its original definitions. Unknown fields are rejected at
+closed sender JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json`, and `/schema/usage.v4.json`.
+The current bilingual field catalog is at `/schema/features.v4.json`; the v2/v3 catalogs retain their original definitions. Unknown fields are rejected at
 every level. No arbitrary attributes or free-form telemetry are supported.
 
 | Field                    | Meaning                                                       |
 | ------------------------ | ------------------------------------------------------------- |
-| `packet.schema_version`  | Literal `usage.v1`, `usage.v2` or `usage.v3`; never inferred from payload |
+| `packet.schema_version`  | Literal `usage.v1`, `usage.v2`, `usage.v3` or `usage.v4`; never inferred from payload |
 | `packet.installation_id` | SHA-256 of Ed25519 SPKI public-key DER, lowercase hex         |
 | `packet.packet_id`       | UUIDv4 identifying an immutable operation                     |
-| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2/v3 also `consent` |
+| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2/v3/v4 also `consent` |
 | `packet.sequence`        | 0 at registration; increments per accepted operation          |
 | `packet.payload`         | Action-specific closed schema, below                          |
 | `public_key`             | Ed25519 SPKI DER, unpadded base64url                          |
@@ -45,15 +45,15 @@ storage binding and diverging sequence detection provide additional safeguards.
 
 All published report versions remain supported when the collector or PicPeak
 changes. The receiver selects the declared `packet.schema_version`, never the
-installed PicPeak version or the newest schema. A v3-consented installation may
-still deliver v1/v2 packets after an upgrade or restore. No current-release
+installed PicPeak version or the newest schema. A v4-consented installation may
+still deliver v1/v2/v3 packets after an upgrade or restore. No current-release
 minimum is imposed on `picpeak_version`.
 
 The separate, closed reception schemas are published at
 `/schema/ingress/usage.v1.json`, `/schema/ingress/usage.v2.json` and
-`/schema/ingress/usage.v3.json`. For `report` only, they accept omitted or `null`
+`/schema/ingress/usage.v3.json` and `/schema/ingress/usage.v4.json`. For `report` only, they accept omitted or `null`
 measurements: `picpeak_version`, `features`, individual capabilities and their
-known `configured`/`used` members, `gallery_layouts`, and v3 `inventory` with
+known `configured`/`used` members, `gallery_layouts`, and v3/v4 `inventory` with
 either or both totals. Other supplied values retain their original types,
 bounds and per-version allowlists. A missing value is unknown, never false or
 zero; an explicit empty layout list is known and means no layouts were reported.
@@ -68,7 +68,7 @@ This prevents compatibility handling from admitting arbitrary sensitive data.
 over the exact original object. Nothing is stripped, renamed, coerced or filled
 before signature verification or storage. Original envelopes, receipt digests
 and exports remain unchanged. `signPacket` and `verifyEnvelope` still enforce
-the immutable complete sender schemas, including all v1/v2/v3 fields.
+the immutable complete sender schemas, including all original v1/v2/v3 fields and the separate v4 fields.
 
 Delayed reports retain their original logical day in history and cannot replace
 a newer snapshot. There is no maximum report age; the signed transport envelope
@@ -86,9 +86,25 @@ Future changes must preserve all existing sender and reception contracts, add
 new measurements in a new consented schema, and pass the historical/partial
 report regression matrix. Do not reuse old keys with different meanings.
 
+## usage.v4 download configuration
+
+v4 has 86 capabilities and the same two inventory totals as v3. Only
+`gallery_downloads` is replaced with `gallery_downloads_restricted`, a
+configuration-only boolean: at least one gallery explicitly disables downloads.
+The v2/v3 allowed-downloads question stays accepted and independently visible in
+history. Both may be true for mixed galleries; neither value can be derived from
+the other. A report lacking either question is unknown for that question.
+
+A signed `usage-consent.v4` upgrade is required for v1/v2/v3 installations. Local
+collection changes only after its matching receipt. Pending reports are delivered
+unchanged before the upgrade; keep the same packet ID, sequence, original date,
+payload and digest. Retrying signs the same packet with fresh transport metadata.
+Rebuilding a payload under an existing packet ID causes a conflict if the original
+receipt was lost. No migration or rewriting of stored reports is required.
+
 ## Actions
 
-- `register`: the matching `usage-consent.v1`, `usage-consent.v2` or `usage-consent.v3`,
+- `register`: the matching `usage-consent.v1`, `usage-consent.v2`, `usage-consent.v3` or `usage-consent.v4`,
   with sequence zero. A second
   different registration for the same identity conflicts.
 - `report`: `picpeak_version`, `report_date`, `generated_at`, `features`, and
