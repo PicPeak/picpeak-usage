@@ -365,7 +365,7 @@ function Overview({
               ))}
             </div>
             {!Object.keys(data.versions).length && (
-              <p className="muted small">Waiting for the first report.</p>
+              <p className="muted small">{data.installations ? messages.en.unknown : "Waiting for the first report."}</p>
             )}
           </section>
           <section className="panel">
@@ -379,6 +379,9 @@ function Overview({
                 </div>
               ))}
             </div>
+            {!Object.keys(data.layouts).length && data.layouts_reported === 0 && data.installations > 0 && (
+              <p className="muted small">{messages.en.unknown}</p>
+            )}
             <p className="caption">
               An installation can use several layouts. Per-layout gallery counts are never
               reported.

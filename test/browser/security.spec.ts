@@ -123,7 +123,13 @@ test('partial legacy reports do not dilute percentages or turn missing totals in
   await history.getByRole('combobox', { name: 'Reporters', exact: true }).selectOption('own');
   // Log in as the sparse reporter to exercise the real missing-field response.
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await collector.send('delete', 0);
   await unlock(page, { ...collector, identity: id });
+  for (const title of ['PicPeak versions', 'Layouts in use']) {
+    const panel = page.locator('section').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+    await expect(panel).toContainText('Not reported');
+    await expect(panel).not.toContainText('Waiting for the first report.');
+  }
   const ownHistory = page.locator('.usage-history');
   await ownHistory.getByRole('combobox', { name: 'Reporters', exact: true }).selectOption('own');
   await ownHistory.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('photos');
