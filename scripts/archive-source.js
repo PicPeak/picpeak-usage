@@ -27,11 +27,37 @@ const files = [
   "server",
   "web",
   "test",
-  "docs",
+  "docs/DESIGN.md",
+  "docs/FEATURE_COVERAGE.md",
+  "docs/OPERATIONS.md",
+  "docs/PROTOCOL.md",
+  "docs/usage-coverage.v2.json",
   "scripts",
 ];
+// Builds run outside Git too (Docker and downloaded source archives). Do not
+// recursively include ignored local files just because their parent is source.
+const localNames = new Set([
+  "node_modules", ".git", ".local", ".cache", ".vite", ".nyc_output",
+  ".vscode", ".idea", ".claude", ".codex", ".cursor", ".playwright-mcp",
+  "test-results", "playwright-report", "blob-report",
+  "AGENTS.md", "CLAUDE.md", "GEMINI.md", "WORKSPACE.md", ".DS_Store", "Thumbs.db",
+]);
+function sourceFiles(relative) {
+  const name = path.basename(relative);
+  if (localNames.has(name) ||
+      ((name === ".env" || name.startsWith(".env.")) && name !== ".env.example") ||
+      /\.(?:log|sqlite(?:-.*)?|tsbuildinfo|swp|swo|tmp|temp|orig|rej)$/.test(name))
+    return [];
+  const absolute = path.join(root, relative);
+  const stat = fs.lstatSync(absolute);
+  // Local symlinks can point outside the source checkout.
+  if (stat.isSymbolicLink()) return [];
+  if (stat.isDirectory())
+    return fs.readdirSync(absolute).sort().flatMap((child) => sourceFiles(path.join(relative, child)));
+  return stat.isFile() ? [relative] : [];
+}
 execFileSync(
   "tar",
-  ["-czf", path.join(root, "public/source.tar.gz"), ...files],
+  ["-czf", path.join(root, "public/source.tar.gz"), ...files.flatMap(sourceFiles)],
   { cwd: root },
 );
