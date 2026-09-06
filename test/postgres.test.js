@@ -19,7 +19,7 @@ test(
       c.receive(p.signPacket(packet, identity, new Date(now)));
     await send(
       p.makePacket(identity, "register", 0, {
-        consent_version: "usage-consent.v2",
+        consent_version: "usage-consent.v3",
       }),
     );
     const iso = new Date(now).toISOString();
@@ -33,6 +33,7 @@ test(
           { configured: k === "crm", ...(p.observesUse(k) ? { used: k === "crm" } : {}) },
         ]),
       ),
+      inventory: { galleries: 0, photos: 0 },
       gallery_layouts: ["grid"],
     };
     const packets = [

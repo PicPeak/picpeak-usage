@@ -64,5 +64,12 @@
   "workspaceTitle": "Usage, reporters and feedback.",
   "workspaceIntro": "Maintainers can access all retained usage contributions and cross-reporter history. Publishing feedback still requires the author’s permission. Access tokens stay in page memory.",
   "openWorkspace": "Open maintainer workspace",
-  "feedback": "Feedback inbox"
+  "feedback": "Feedback inbox",
+  "galleries": "Stored galleries",
+  "photos": "Stored photo records",
+  "inventoryTitle": "Galleries and photos",
+  "inventorySemantics": "Sum of each reporter’s last report in the period, including drafts and archived records. Videos are not photos. Missing values in older schemas are unknown; changes in reporting installations change the total.",
+  "inventoryReported": "Reporters supplying inventory totals",
+  "inventorySummary": "Sum of the latest report per reporter. No per-gallery breakdown, filenames or image contents.",
+  "inventoryCatalog": "Totals describe currently stored database records, not upload activity or unique files. Thumbnails and videos are excluded from the photo total. Only these two numbers leave the installation."
 }

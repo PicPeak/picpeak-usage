@@ -64,5 +64,12 @@
   "workspaceTitle": "Nutzung, Reporter und Feedback.",
   "workspaceIntro": "Maintainer können auf alle gespeicherten Nutzungsbeiträge und reporterübergreifende Verläufe zugreifen. Die Veröffentlichung von Feedback erfordert weiterhin die Erlaubnis der Verfasser. Zugriffstoken bleiben im Seitenspeicher.",
   "openWorkspace": "Maintainer-Bereich öffnen",
-  "feedback": "Feedback-Eingang"
+  "feedback": "Feedback-Eingang",
+  "galleries": "Gespeicherte Galerien",
+  "photos": "Gespeicherte Fotoeinträge",
+  "inventoryTitle": "Galerien und Fotos",
+  "inventorySemantics": "Summe des letzten Berichts je Reporter im Zeitraum, einschließlich Entwürfen und archivierten Einträgen. Videos zählen nicht als Fotos. Fehlende Werte älterer Schemata sind unbekannt; Änderungen der teilnehmenden Reporter verändern die Summe.",
+  "inventoryReported": "Reporter mit Bestandszahlen",
+  "inventorySummary": "Summe des neuesten Berichts je Reporter. Keine Aufschlüsselung nach Galerien, keine Dateinamen oder Bildinhalte.",
+  "inventoryCatalog": "Die Gesamtzahlen beschreiben aktuell gespeicherte Datenbankeinträge, keine Upload-Aktivität oder eindeutigen Dateien. Vorschaubilder und Videos zählen nicht zur Fotoanzahl. Nur diese beiden Zahlen verlassen die Installation."
 }

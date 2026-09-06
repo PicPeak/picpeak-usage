@@ -60,7 +60,7 @@ for (const engine of ['sqlite', ...(process.env.TEST_DATABASE_URL ? ['pg'] : [])
       const result = await request(app).get(`/schema/${version}.json`).expect(200);
       assert.deepEqual(result.body, p.envelopeSchemas[version]);
     }
-    assert.deepEqual((await request(app).get('/schema/features.v2.json').expect(200)).body, p.CATALOG);
+    assert.deepEqual((await request(app).get('/schema/features.v2.json').expect(200)).body, p.CATALOGS["usage.v2"]);
     await c.receive(envelope(current, 'delete', 0));
     assert.equal((await c.summary()).features.video_uploads.reported, 0);
   });

@@ -1,6 +1,7 @@
 "use strict";
 const { FEATURE_KEYS, ProtocolError } = require("../protocol/protocol.cjs");
 const { readSnapshot } = require("./database");
+const { emptyInventory, addInventory } = require("./inventory");
 const DAY = 86400000;
 
 function period(date, interval) {
@@ -123,6 +124,7 @@ async function history(
         to: end > to ? to : end,
         reports: 0,
         reporters: 0,
+        inventory: emptyInventory(),
         features: Object.fromEntries(
           FEATURE_KEYS.map((key) => [
             key,
@@ -174,6 +176,7 @@ async function history(
         for (const row of rows) {
           const { packet } = JSON.parse(row.raw);
           const report = packet.payload;
+          addInventory(point.inventory, report);
           point.reporters++;
           for (const key of FEATURE_KEYS) {
             const signal = report.features[key];

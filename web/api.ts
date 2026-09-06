@@ -2,6 +2,7 @@ export interface Summary {
   schema_version: string;
   schema_versions: Record<string, number>;
   installations: number;
+  inventory: Record<"galleries" | "photos", { total: number; reported: number }>;
   features: Record<string, { configured: number; used: number; reported: number; used_reported: number }>;
   versions: Record<string, number>;
   layouts: Record<string, number>;
@@ -95,4 +96,4 @@ export function download(value: unknown, name: string) {
 export const featureNames: Record<string, string> = Object.fromEntries(
   Object.entries(catalog.features).map(([key, value]) => [key, value.name.en]),
 );
-import catalog from "../protocol/features.v2.json";
+import catalog from "../protocol/features.v3.json";

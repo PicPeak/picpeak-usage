@@ -51,7 +51,7 @@ async function fixture(t, engine, options = {}) {
   const register = async () => {
     const identity = p.generateIdentity();
     await send(identity, "register", 0, {
-      consent_version: "usage-consent.v2",
+      consent_version: "usage-consent.v3",
     });
     return identity;
   };
@@ -59,6 +59,7 @@ async function fixture(t, engine, options = {}) {
     picpeak_version: version,
     report_date: new Date(clock.now).toISOString().slice(0, 10),
     generated_at: new Date(clock.now).toISOString(),
+    inventory: { galleries: 0, photos: 0 },
     gallery_layouts: ["grid"],
     features: Object.fromEntries(
       Object.entries(p.emptyFeatures()),

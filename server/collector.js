@@ -8,10 +8,12 @@ const {
   MAX_AGE_MS,
   FEATURE_KEYS,
   CURRENT_SCHEMA_VERSION,
-  CURRENT_CONSENT_VERSION,
+  schemaForConsent,
+  schemaRank,
 } = require("../protocol/protocol.cjs");
 const SESSION_MS = 15 * 60 * 1000;
 const { readSnapshot } = require("./database");
+const { emptyInventory, addInventory } = require("./inventory");
 const PAGE_SIZE = 200;
 
 class Collector {
@@ -186,8 +188,7 @@ class Collector {
             expires_at: now + MAX_AGE_MS * 2,
           });
           if (packet.action === "report") {
-            if (packet.schema_version === CURRENT_SCHEMA_VERSION &&
-                installation.consent_version !== CURRENT_CONSENT_VERSION)
+            if (schemaRank(packet.schema_version) > schemaRank(schemaForConsent(installation.consent_version)))
               throw new ProtocolError("CONSENT_REQUIRED", 409);
             // One current daily report plus one delayed report per receiving day.
             await this.checkQuota(tx, id, "report", 2, now);
@@ -226,11 +227,11 @@ class Collector {
             await this.bumpRevision(tx);
           }
           if (packet.action === "consent") {
-            if (installation.consent_version === CURRENT_CONSENT_VERSION)
+            if (schemaRank(packet.schema_version) <= schemaRank(schemaForConsent(installation.consent_version)))
               throw new ProtocolError("CONSENT_ALREADY_CURRENT", 409);
             await this.checkQuota(tx, id, "consent", 1, now);
             await tx("installations").where({ id }).update({
-              consent_version: CURRENT_CONSENT_VERSION,
+              consent_version: packet.payload.consent_version,
             });
             await this.bumpRevision(tx);
           }
@@ -564,6 +565,7 @@ class Collector {
   }
 
   async computeSummary(db = this.db) {
+    const inventory = emptyInventory();
     const versions = {};
     const layouts = {};
     const schemaVersions = {};
@@ -582,6 +584,7 @@ class Collector {
       installations += rows.length;
       for (const row of rows) {
         const report = JSON.parse(row.projection);
+        addInventory(inventory, report);
         const schemaVersion = report.schema_version || "usage.v1";
         schemaVersions[schemaVersion] = (schemaVersions[schemaVersion] || 0) + 1;
         versions[report.picpeak_version] =
@@ -610,6 +613,7 @@ class Collector {
       .orderBy("report_date", "asc");
     return {
       schema_version: CURRENT_SCHEMA_VERSION,
+      inventory,
       schema_versions: schemaVersions,
       installations,
       features,
