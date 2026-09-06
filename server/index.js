@@ -6,6 +6,20 @@ async function start() {
   const db = createDatabase();
   await migrate(db);
   const app = createApp({ db });
+  await app.locals.collector.pruneExpired();
+  let maintaining = false;
+  const maintenance = setInterval(async () => {
+    if (maintaining) return;
+    maintaining = true;
+    try {
+      await app.locals.collector.pruneExpired();
+    } catch {
+      process.stderr.write("picpeak-usage: security metadata cleanup failed\n");
+    } finally {
+      maintaining = false;
+    }
+  }, 60000);
+  maintenance.unref();
   const host = process.env.HOST || "127.0.0.1";
   if (host !== "127.0.0.1" && Number(process.env.TRUST_PROXY_HOPS || 0) === 0)
     process.stderr.write(
@@ -18,8 +32,10 @@ async function start() {
   const server = app.listen(port, host, () =>
     process.stdout.write(`picpeak-usage listening on port ${port}\n`),
   );
-  const stop = () =>
+  const stop = () => {
+    clearInterval(maintenance);
     server.close(() => db.destroy().finally(() => process.exit(0)));
+  };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
 }

@@ -40,7 +40,16 @@ Every build includes /source.tar.gz containing a fixed allowlist of application 
 
 ## Contract and verification
 
-The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schema is served at /schema/usage.v1.json. PicPeak carries byte-identical protocol files in backend/src/usage/.
+The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schemas are served at /schema/usage.v1.json and /schema/usage.v2.json, with the EN/DE catalog at /schema/features.v2.json. PicPeak carries byte-identical protocol/catalog files in backend/src/usage/.
+
+The [full coverage matrix](docs/FEATURE_COVERAGE.md) lists all 73 capabilities,
+their exact meaning, all reviewed route families/flags and privacy exclusions.
+v2 adds 54 capabilities to the original 19: 56 configured/used pairs and 17
+configuration-only signals. No visitor behavior, user profiles, counts or content.
+Existing participants stay on v1 until explicit signed v2 consent; the upgrade
+preserves raw history and resets local usage markers only after confirmation.
+Deploy the collector first, then PicPeak migration 205/client. Mixed-version
+aggregates use per-field reported denominators; absent does not mean unused.
 
 ```sh
 npm test

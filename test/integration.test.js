@@ -28,6 +28,25 @@ async function setup(t) {
   await require(
     path.join(root, "backend/migrations/core/201_product_usage"),
   ).up(local);
+  // Use the complete usage schema of the checked-out client, not a stale
+  // hand-maintained subset. Optional newer migrations keep released clients
+  // compatible while CI also exercises the current PicPeak branch.
+  for (const migration of (
+    await fs.readdir(path.join(root, "backend/migrations/core"))
+  )
+    .filter(
+      (name) =>
+        /^\d+_product_usage.*\.js$/.test(name) && !name.startsWith("201_"),
+    )
+    .sort()) {
+    await require(path.join(root, "backend/migrations/core", migration)).up(
+      local,
+    );
+  }
+  await local.schema.createTable("css_templates", (table) => {
+    table.increments("id");
+    table.boolean("is_enabled");
+  });
   await local.schema.createTable("app_settings", (table) => {
     table.string("setting_key").primary();
     table.text("setting_value");
@@ -44,6 +63,7 @@ async function setup(t) {
     table.increments("id");
     table.text("color_theme");
     table.text("external_path");
+    table.integer("css_template_id");
   });
   await local.schema.createTable("mail_accounts", (table) => {
     table.increments("id");
@@ -67,7 +87,12 @@ async function setup(t) {
     smtp_host: "private-mail.example.test",
   });
   const clock = { value: Date.parse("2026-09-05T12:00:00.000Z") };
-  const app = createApp({ db, now: () => clock.value, disableRateLimit: true });
+  const app = createApp({
+    db,
+    now: () => clock.value,
+    disableRateLimit: true,
+    sessionSecret: "integration-only-session-secret-123456789",
+  });
   const server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   const transport = { offline: false, loseReceipt: false, calls: 0 };
@@ -129,6 +154,11 @@ test(
     await service.tick();
     const data = await service.export();
     assert.equal(data.packets.length, 1);
+    assert.equal(data.export_receipt.packet_count, 1);
+    assert.equal(
+      (await service.status()).privacy_receipts.last_export.report_count,
+      1,
+    );
     const serialized = JSON.stringify(data);
     assert.ok(!serialized.includes("PRIVATE EVENT"));
     assert.ok(!serialized.includes("private-mail"));
@@ -148,6 +178,11 @@ test(
     assert.equal(state.status, "disabled");
     assert.equal(state.private_key_encrypted, null);
     assert.equal(state.installation_id, null);
+    const receipts = (await service.status()).privacy_receipts;
+    assert.equal(receipts.last_deletion.status, "collector-confirmed");
+    assert.equal(receipts.last_export, undefined);
+    assert.ok(!JSON.stringify(receipts).includes(id));
+    assert.ok(!JSON.stringify(receipts).includes("session_token"));
     await assert.rejects(c.lookup(id));
     await service.enable("usage-consent.v1");
     assert.notEqual((await service.status()).installation_id, id);
@@ -273,7 +308,7 @@ test(
   "in-app feedback is separate from reports and a short-lived portal session permits votes",
   { skip: !UsageService },
   async (t) => {
-    const { service, c, db } = await setup(t);
+    const { service, c, db, local } = await setup(t);
     await service.enable("usage-consent.v1");
     const feedbackId = require("node:crypto").randomUUID();
     const result = await service.command("feedback", {
@@ -291,6 +326,11 @@ test(
     await c.moderate(feedbackId, { published: true, status: "open" });
     const session = await service.command("session", {});
     assert.ok(session.receipt.session_token);
+    assert.ok(
+      !(await local("product_usage_state").first()).last_receipt.includes(
+        session.receipt.session_token,
+      ),
+    );
     assert.equal(
       await c.participant(session.receipt.session_token),
       (await service.status()).installation_id,
@@ -304,13 +344,161 @@ test(
 );
 
 test(
+  "local audit receipts cannot be restored by an export completing after opt-out",
+  { skip: !UsageService },
+  async (t) => {
+    const { service, transport, local } = await setup(t);
+    await service.enable("usage-consent.v1");
+    await service.tick();
+    const id = (await service.status()).installation_id;
+    let release;
+    let received;
+    const accepted = new Promise((resolve) => {
+      received = resolve;
+    });
+    const paused = new Promise((resolve) => {
+      release = resolve;
+    });
+    transport.afterResponse = async () => {
+      transport.afterResponse = null;
+      received();
+      await paused;
+    };
+    const exporting = service.export();
+    await accepted;
+    try {
+      await service.disable();
+    } finally {
+      release();
+      await exporting;
+    }
+    const state = await local("product_usage_state").first();
+    assert.equal(state.status, "disabled");
+    assert.equal(state.installation_id, null);
+    const receipts = JSON.parse(state.privacy_receipts);
+    assert.equal(receipts.last_deletion.status, "collector-confirmed");
+    assert.equal(receipts.last_export, undefined);
+    assert.ok(!JSON.stringify(receipts).includes(id));
+  },
+);
+
+test(
+  "client receipt migration is repeatable and scrubs legacy plaintext sessions",
+  { skip: !UsageService },
+  async (t) => {
+    const { local } = await setup(t);
+    const migration = require(
+      path.join(
+        root,
+        "backend/migrations/core/204_product_usage_privacy_receipts",
+      ),
+    );
+    await local("product_usage_state")
+      .where({ id: 1 })
+      .update({
+        last_receipt: JSON.stringify({
+          status: "accepted",
+          session_token: "synthetic-old-token",
+        }),
+      });
+    await migration.up(local);
+    await migration.up(local);
+    assert.deepEqual(
+      JSON.parse((await local("product_usage_state").first()).last_receipt),
+      { status: "accepted" },
+    );
+    assert.ok(
+      await local.schema.hasColumn("product_usage_state", "privacy_receipts"),
+    );
+  },
+);
+
+test(
   "protocol files are byte-identical in both repositories",
   { skip: !UsageService },
   async () => {
-    for (const file of ["schema.cjs", "protocol.cjs"])
+    for (const file of ["schema.cjs", "protocol.cjs", "features.v2.json"])
       assert.equal(
         await fs.readFile(path.join(root, "backend/src/usage", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../protocol", file), "utf8"),
       );
+    for (const file of ["usage-coverage.v2.json", "FEATURE_COVERAGE.md"])
+      assert.equal(await fs.readFile(path.join(root, "docs", file), "utf8"),
+        await fs.readFile(path.join(__dirname, "../docs", file), "utf8"));
   },
 );
+
+test("v1 persists until signed v2 consent is acknowledged, including restart after a lost receipt", { skip: !UsageService }, async (t) => {
+  const { service, options, local, c, clock, transport } = await setup(t);
+  await service.enable("usage-consent.v1");
+  await service.tick();
+  const identity = (await service.status()).installation_id;
+  await service.markUsed(["crm", "video_uploads", "gallery_feedback_likes"]);
+  assert.deepEqual((await local("product_usage_markers").pluck("feature")).sort(), ["crm", "custom_css"]);
+  transport.offline = true;
+  const queued = await service.command("consent", { consent_version: "usage-consent.v2" });
+  assert.equal(queued.queued, true);
+  assert.equal(queued.delivered, false);
+  await service.markUsed(["video_uploads", "api_integration"]);
+  assert.equal(Object.keys((await service.preview()).features).length, 19);
+  transport.offline = false;
+  transport.loseReceipt = true;
+  await service.tick();
+  assert.equal((await c.db("installations").where({ id: identity }).first()).consent_version, "usage-consent.v2");
+  assert.equal((await service.status()).schema_version, "usage.v1");
+  await service.markUsed(["video_uploads"]);
+  assert.ok(!(await local("product_usage_markers").pluck("feature")).includes("video_uploads"));
+  const restarted = new UsageService(local, options);
+  await restarted.tick();
+  assert.equal((await restarted.status()).schema_version, "usage.v2");
+  assert.equal((await restarted.status()).installation_id, identity);
+  assert.deepEqual(await local("product_usage_markers").pluck("feature"), []);
+  await assert.rejects(restarted.command("consent", { consent_version: "usage-consent.v2" }));
+  await restarted.markUsed(["video_uploads", "api_integration", "gallery_feedback_likes", "PRIVATE@example.test"]);
+  assert.deepEqual((await local("product_usage_markers").pluck("feature")).sort(), ["api_integration", "video_uploads"]);
+  const preview = await restarted.preview();
+  assert.equal(Object.keys(preview.features).length, 73);
+  assert.deepEqual(preview.features.gallery_feedback_likes, { configured: false });
+  assert.equal(preview.features.video_uploads.used, true);
+  clock.value += 86400000;
+  await restarted.tick();
+  const raw = await restarted.export();
+  assert.deepEqual(raw.packets.map((r) => r.envelope.packet.schema_version), ["usage.v1", "usage.v2"]);
+  assert.equal(raw.packets[1].envelope.packet.payload.features.video_uploads.used, true);
+  for (const canary of ["PRIVATE EVENT", "private-mail", "private-domain", "PRIVATE@example"])
+    assert.ok(!JSON.stringify(raw).includes(canary));
+  await restarted.disable();
+  assert.equal((await c.summary()).installations, 0);
+  assert.equal((await restarted.status()).status, "disabled");
+});
+
+test("late consent receipt cannot override opt-out or restore markers", { skip: !UsageService }, async (t) => {
+  const { service, transport, local, c } = await setup(t);
+  await service.enable("usage-consent.v1");
+  transport.afterResponse = async () => {
+    transport.afterResponse = null;
+    await service.disable();
+  };
+  await service.command("consent", { consent_version: "usage-consent.v2" });
+  assert.equal((await service.status()).status, "deletion_pending");
+  await service.markUsed(["video_uploads", "crm"]);
+  assert.deepEqual(await local("product_usage_markers").pluck("feature"), []);
+  await service.tick();
+  assert.equal((await service.status()).status, "disabled");
+  assert.equal((await c.db("installations")).length, 0);
+});
+
+test("fresh v2 opt-in emits the complete closed catalog with no config-only use", { skip: !UsageService }, async (t) => {
+  const { service, c } = await setup(t);
+  await service.enable("usage-consent.v2");
+  await service.tick();
+  const state = await service.status();
+  const payload = state.last_packet.packet.payload;
+  assert.equal(Object.keys(payload.features).length, 73);
+  assert.equal(state.consent_update_available, false);
+  assert.equal(state.last_packet.packet.schema_version, "usage.v2");
+  assert.deepEqual(payload.features.gallery_guest_uploads, { configured: false });
+  const summary = await c.summary();
+  assert.equal(summary.features.gallery_guest_uploads.used_reported, 0);
+  assert.equal(summary.features.photo_management.reported, 1);
+});

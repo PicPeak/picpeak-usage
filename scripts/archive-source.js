@@ -17,6 +17,8 @@ const files = [
   "index.html",
   "tsconfig.json",
   "vite.config.mjs",
+  "playwright.config.ts",
+  ".github",
   "public/fonts.css",
   "public/fonts",
   "public/picpeak-mark.svg",

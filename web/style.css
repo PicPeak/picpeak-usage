@@ -927,6 +927,9 @@ blockquote cite {
 }
 
 /* ---------- Small screens ---------- */
+.catalog-entry { border-top: 1px solid var(--line, #ddd); padding: 1rem 0; }
+.catalog-entry summary { cursor: pointer; font-weight: 600; }
+.catalog-entry summary small { display: block; font-weight: 400; overflow-wrap: anywhere; }
 @media (max-width: 750px) {
   .panel {
     padding: 1.25rem 1.125rem;

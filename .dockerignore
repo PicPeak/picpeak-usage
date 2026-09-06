@@ -10,3 +10,5 @@ AGENTS.md
 *.log
 *.sqlite*
 public/source.tar.gz
+test-results
+playwright-report
