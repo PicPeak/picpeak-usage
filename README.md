@@ -24,7 +24,25 @@ Use the PicPeak implementation of #1110 and run its normal migrations. For local
 
 Open PicPeak → Settings → Product usage & feedback, read the disclosure, and explicitly enable participation. The backend registers an Ed25519 identity and sends daily reports on admin app use. Use the same page to preview/export packets, submit feedback, open a 15-minute voting session, or disable participation and delete data.
 
-The hash permits read access only: the installation's raw packets and the participant-wide aggregate dataset. It cannot vote, send reports, moderate feedback, or delete data. Maintainers open /maintainer with the deployment's separate token, held only in page memory.
+The hash permits read access only: the installation's raw packets, its own history and the participant-wide aggregate dataset and history. It cannot vote, send reports, moderate feedback, or delete data. Maintainers open /maintainer with the deployment's separate token, held only in page memory. Maintainer access does not require a participating installation.
+
+The maintainer workspace provides all retained contribution data: a paginated
+reporter directory with registration metadata and latest snapshots, each reporter's
+original accepted reports, and a complete NDJSON export of reporters, snapshots,
+reports, feedback, votes and operation receipts. Export all reporters or one
+selected reporter. Authentication internals and deployment secrets are not usage
+contributions and are excluded. Maintainer read access does not authorize public
+or marketing publication of feedback.
+
+Participants and maintainers can explore daily, weekly or monthly UTC histories
+of reporting installations, report counts, capability configuration/use, versions,
+layouts and schemas. Each installation contributes its last report **within**
+each period; gaps are not carried forward and reporting more often gives no
+additional weight. Feature percentages use per-field denominators. Usage means
+used since schema consent, not activity during that period. Opt-out removes
+historical contributions. Choose a date range or all retained history, inspect
+the chart/table, and download the selected history as JSON. New history and data
+views are available in English and German.
 
 ## Deploy and audit
 

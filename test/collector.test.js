@@ -77,6 +77,7 @@ test("register, signed report, exact raw export, participant-only projections an
   const raw = await c.lookup(identity.installation_id);
   assert.equal(raw.packets.length, 1);
   assert.deepEqual(raw.packets[0].envelope, envelope);
+  assert.deepEqual(raw.packets[0].packet, envelope.packet);
   const summary = await c.summary();
   assert.equal(summary.installations, 1);
   assert.equal(summary.features.crm.used, 1);
@@ -96,6 +97,12 @@ test("register, signed report, exact raw export, participant-only projections an
     .set("Authorization", `Bearer ${identity.installation_id}`)
     .expect(200);
   assert.equal(viaHash.body.installations, 1);
+  const ownExport = await request(app)
+    .post("/api/participant/lookup")
+    .send({ installation_id: identity.installation_id })
+    .expect(200);
+  assert.deepEqual(ownExport.body.packets[0].packet, envelope.packet);
+  assert.deepEqual(ownExport.body.packets[0].envelope, envelope);
   const exported = await request(app)
     .get("/api/participant/export")
     .set("Authorization", `Bearer ${identity.installation_id}`)

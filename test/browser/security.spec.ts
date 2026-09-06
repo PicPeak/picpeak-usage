@@ -191,7 +191,7 @@ test("S01: a late maintainer reload cannot restore private inbox state after log
 }) => {
   await page.goto(`${collector.url}/maintainer`);
   await page.getByLabel("Maintainer access token").fill(SECRET);
-  await page.getByRole("button", { name: "Open feedback inbox" }).click();
+  await page.getByRole("button", { name: "Open maintainer workspace" }).click();
   await expect(
     page.getByRole("heading", { name: "Synthetic request", exact: true }),
   ).toBeVisible();
@@ -273,4 +273,105 @@ test("S04: bounded public lists remain fully navigable", async ({
   await expect(
     page.getByRole("button", { name: "Load more requests" }),
   ).toHaveCount(0);
+});
+
+async function seedHistory(collector: any) {
+  const second = p.generateIdentity();
+  await collector.c.receive(p.signPacket(p.makePacket(second, "register", 0, { consent_version: "usage-consent.v2" }), second));
+  const date = (ago: number) => new Date(Date.now() - ago * 86400000).toISOString().slice(0, 10);
+  for (const [identity, ago, used] of [
+    [collector.identity, 60, false], [collector.identity, 2, false],
+    [collector.identity, 1, true], [second, 2, false], [second, 0, true],
+  ] as const) {
+    const envelope = p.signPacket(p.makePacket(identity, "report", 1, {
+      picpeak_version: ago > 1 ? "1.1.0" : "1.2.3", report_date: date(ago),
+      generated_at: `${date(ago)}T12:00:00.000Z`, gallery_layouts: ["grid"],
+      features: { ...p.emptyFeatures(), crm: { configured: used, used } },
+    }), identity);
+    await collector.db("reports").insert({
+      packet_id: envelope.packet.packet_id, installation_id: identity.installation_id,
+      report_date: date(ago), raw: JSON.stringify(envelope), received_at: `${date(ago)}T12:00:00.000Z`,
+    });
+  }
+  await collector.c.bumpRevision(collector.db);
+  return { second, date };
+}
+
+for (const width of [1280, 390]) {
+  test(`history at ${width}px: participant compares all reporters with own and exports the complete selected range`, async ({ page, collector }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const { date } = await seedHistory(collector);
+    await unlock(page, collector);
+    const chart = page.locator(".usage-history");
+    await chart.getByRole("combobox", { name: "Metric", exact: true }).selectOption("used");
+    await chart.getByRole("combobox", { name: "Capability", exact: true }).selectOption("crm");
+    await chart.getByText("Show values as a table", { exact: true }).click();
+    await expect(chart.getByRole("row").last()).toContainText("50% (1/2)");
+    await chart.getByRole("combobox", { name: "Reporters", exact: true }).selectOption("own");
+    await expect(chart.getByRole("row").last()).toContainText("0% (0/1)");
+    await chart.getByRole("combobox", { name: "Reporters", exact: true }).selectOption("all");
+    await expect(chart.getByRole("row").last()).toContainText("50% (1/2)");
+    await chart.getByRole("combobox", { name: "Capability", exact: true }).selectOption("gallery_guest_uploads");
+    await expect(chart).toContainText("Actual use is not collected for this capability");
+    await chart.getByRole("combobox", { name: "Metric", exact: true }).selectOption("reporters");
+    await chart.getByRole("combobox", { name: "Date range", exact: true }).selectOption("all");
+    await expect(chart.getByRole("combobox", { name: "Group by", exact: true })).toHaveValue("month");
+    await expect(chart.getByRole("row").nth(1)).toContainText(date(60));
+    const downloading = page.waitForEvent("download");
+    await chart.getByRole("button", { name: "Download history (JSON)", exact: true }).click();
+    const value = JSON.parse(await fs.readFile((await (await downloading).path())!, "utf8"));
+    expect(value.from).toBe(date(60));
+    expect(value.points.reduce((n: number, point: any) => n + point.reports, 0)).toBe(6);
+    expect(JSON.stringify(value)).not.toContain(collector.identity.installation_id);
+    await chart.getByLabel("Language / Sprache").selectOption("de");
+    await expect(chart.getByRole("heading", { name: "Nutzung im Zeitverlauf" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await chart.screenshot({ path: testInfo.outputPath(`participant-history-${width}.png`) });
+  });
+
+  test(`maintainer at ${width}px: no participant login needed for all reporters, raw reports and complete export`, async ({ page, collector }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await seedHistory(collector);
+    await page.goto(`${collector.url}/maintainer`);
+    await page.getByLabel("Maintainer access token").fill(SECRET);
+    await page.getByRole("button", { name: "Open maintainer workspace" }).click();
+    await expect(page.getByRole("heading", { name: "Reporter directory", exact: true })).toBeVisible();
+    const rows = page.locator(".reporter-directory table tbody tr");
+    await expect(rows).toHaveCount(2);
+    await rows.filter({ hasText: collector.identity.installation_id }).getByRole("button", { name: "Inspect reporter" }).click();
+    const detail = page.locator(".reporter-details");
+    await expect(detail.locator("details")).toHaveCount(5);
+    await detail.locator("details").nth(1).locator("summary").click();
+    await expect(detail.locator("pre").last()).toContainText('"signature_verified": true');
+    const downloading = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export all contributions (NDJSON)" }).click();
+    const exported = await fs.readFile((await (await downloading).path())!, "utf8");
+    const records = exported.trim().split("\n").map((line: string) => JSON.parse(line));
+    expect(records.filter((row: any) => row.type === "reporter")).toHaveLength(2);
+    expect(records.filter((row: any) => row.type === "report")).toHaveLength(6);
+    expect(records.at(-1).type).toBe("export_receipt");
+    await page.getByLabel("Language / Sprache").selectOption("de");
+    await expect(page.getByRole("heading", { name: "Alle gemeldeten Daten" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.locator(".maintainer-data").screenshot({ path: testInfo.outputPath(`maintainer-data-${width}.png`) });
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(page.locator(".maintainer-data")).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText(collector.identity.installation_id);
+  });
+}
+
+test("a pending maintainer export is cancelled on sign-out", async ({ page, collector }) => {
+  await page.goto(`${collector.url}/maintainer`);
+  await page.getByLabel("Maintainer access token").fill(SECRET);
+  await page.getByRole("button", { name: "Open maintainer workspace" }).click();
+  await expect(page.getByRole("heading", { name: "Reporter directory" })).toBeVisible();
+  const held = await holdResponse(page, "**/api/maintainer/export");
+  const downloads: unknown[] = [];
+  page.on("download", (value) => downloads.push(value));
+  await page.getByRole("button", { name: "Export all contributions (NDJSON)" }).click();
+  await held.reached;
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await held.release();
+  expect(downloads).toHaveLength(0);
+  await expect(page.locator(".maintainer-data")).toHaveCount(0);
 });

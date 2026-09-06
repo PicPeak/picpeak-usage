@@ -140,6 +140,20 @@ portal requests never set markers or cause reports.
   installation or a live voting session token.
 - `/api/participant/summary`: latest adoption/version/layout distributions and
   daily history. Opt-out removes historical contributions too.
+- `POST /api/participant/history`: bearer-authenticated time series. Body:
+  `from` (inclusive UTC date or `all`), `to` (inclusive UTC date), `interval`
+  (`day`, `week`, `month`) and `scope` (`all`, `own`). Defaults: last 30 days,
+  daily, all reporters. Own scope is derived from the credential; participant
+  callers cannot supply another installation ID. Dates are validated and ranges
+  are limited to 366 periods; choose weeks/months for longer histories.
+  Responses include `revision`, `available` date bounds and `points` with period
+  start, clipped `from`/`to`, total `reports`, unique `reporters`, feature numerators
+  and reported denominators, and version/layout/schema counts. Weeks start Monday.
+  One latest report **within each period** per reporter contributes to signals
+  and distributions. Report count includes all reports in the period. Empty
+  periods have zero reporters/reports and zero denominators (unknown percentages).
+  No forward fill; no identity, signature or private feedback fields. Used means
+  used since schema consent, not per-period activity. Read from one DB snapshot.
 - `/api/participant/dataset`: every latest feature projection without identity
   or signature, in pages of 200. `/api/participant/export` downloads all as
   NDJSON from one database snapshot. Pages return `revision`; pass it on requests
@@ -155,6 +169,8 @@ portal requests never set markers or cause reports.
   bearer read credential. Both include a dated export receipt. Each logical
   usage report appears once, exactly as first received; transport retries are
   deduplicated and rejected attempts/other operation types are not usage reports.
+  Each report retains the original signed `envelope`; `packet` is an alias of
+  `envelope.packet` for clients inspecting action/type metadata directly.
 - `POST /api/participant/packets`: bounded UI preview. Body `installation_id`,
   optionally `after` (last UTC report date) and `revision` from the previous page.
   Returns up to 200 packets, `next` and `revision`. On `DATASET_CHANGED`, restart.
@@ -169,6 +185,24 @@ portal requests never set markers or cause reports.
 - Private feedback is maintainer-only. Publication requires submitter permission
   and review; homepage marketing requires additional permission. Opt-out deletes
   private/public feedback, requests, testimonials, votes, and all sessions.
+- Maintainers use the separate configured `MAINTAINER_TOKEN` as a bearer token
+  for all `/api/maintainer/*` routes. Participant hashes/sessions do not qualify.
+  `GET /summary` returns the same usage summary without requiring participation.
+  `POST /history` accepts the history filters above, with scope `all` only and an
+  optional `installation_id` to inspect a reporter. `POST /reporters` returns
+  registration metadata, report counts/date bounds and latest snapshots, with
+  `after` (last reporter ID) and `revision` pagination in the JSON body, 200/page.
+  `POST /packets` uses `installation_id`, `after` (report date), and `revision`,
+  with the same raw page format as participant packets. IDs remain out of URLs.
+  `POST /export` accepts `{}` for all reporters or `{installation_id}` for one;
+  streams every retained contribution under a single DB snapshot as NDJSON.
+  Records have `{type, data}`; types: `manifest`, `reporter`, `snapshot`, `report`,
+  `feedback`, `vote`, `operation`, `export_receipt`. Reports contain original
+  `envelope` objects; feedback includes private text, attribution, and consent.
+  A filtered export includes votes cast by that reporter. The final receipt has
+  per-type counts, timestamp and revision; no access/export log is persisted.
+  Sessions, nonces, revocation digests, abuse counters, and deployment secrets
+  are excluded. Maintainer reads never expand feedback publication permissions.
 - Raw packets remain available for active participation. Opt-out removes them
   and their projections; only a one-way revocation digest remains linked to the
   former identity. Short-lived global abuse counters have no identity linkage.

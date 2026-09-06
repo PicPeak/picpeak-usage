@@ -1,5 +1,6 @@
 import { useState } from "react";
 import catalog from "../protocol/features.v2.json";
+import { messages } from "./historyLocale";
 
 export function FeatureCatalog() {
   const [lang, setLang] = useState<"en" | "de">("en");
@@ -25,6 +26,7 @@ export function FeatureCatalog() {
     <p>{german
       ? "v1 behält die bisherigen 19 Signale. Neue Signale werden erst nach ausdrücklicher v2-Zustimmung erfasst. Dabei beginnt der lokale Genutzt-Zeitraum neu; v1 misst seit Teilnahme. Nicht gemeldete Felder sind unbekannt, nicht false. Rohberichte behalten ihre ursprüngliche Version."
       : "v1 keeps the original 19 signals. New signals require explicit v2 consent, restarting the local used observation period; v1 measures since joining. Unreported fields are unknown, not false. Raw reports retain their original version."}</p>
+    <p className="notice">{messages[lang].accessDisclosure}</p>
     {entries.map(([key, value]) => <details className="catalog-entry" key={key}>
       <summary>{value.name[lang]} <small><code>{key}</code> · {value.since}</small></summary>
       <p><strong>{german ? "Konfiguriert" : "Configured"}:</strong> {value.configured[lang]}</p>

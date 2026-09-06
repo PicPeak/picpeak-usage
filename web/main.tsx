@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRequestScope } from "./useRequestScope";
 import { FeatureCatalog } from "./FeatureCatalog";
+import { History } from "./History";
+import { MaintainerData } from "./MaintainerData";
+import { LanguageSelect, messages, type Language } from "./historyLocale";
 import { createRoot } from "react-dom/client";
 import {
   api,
@@ -249,7 +252,6 @@ function Overview({
     )
     .sort((a, b) => b[1][metric] - a[1][metric]);
   const reports = data.history.reduce((sum, row) => sum + row.reports, 0);
-  const peak = Math.max(...data.history.map((r) => r.reports), 1);
   return (
     <>
       <section className="hero">
@@ -284,6 +286,7 @@ function Overview({
           included.
         </div>
       )}
+      <History token={credential} />
       <div className="dashboard-grid">
         <section className="panel adoption" id="adoption">
           <p className="eyebrow">Feature adoption</p>
@@ -416,30 +419,6 @@ function Overview({
           </section>
         </aside>
       </div>
-      <section className="panel section">
-        <p className="eyebrow">Participation over time</p>
-        <h2>Daily report history</h2>
-        <p className="caption" style={{ marginTop: "0.5rem" }}>
-          Reports per UTC day from installations still participating. Opt-out
-          removes historical contributions too.
-        </p>
-        <div className="history">
-          {data.history.slice(-30).map((row) => (
-            <div key={row.date}>
-              <span>{row.date}</span>
-              <div className="bar">
-                <span style={{ width: `${(row.reports / peak) * 100}%` }} />
-              </div>
-              <strong>{row.reports}</strong>
-            </div>
-          ))}
-        </div>
-        {!data.history.length && (
-          <p className="muted small" style={{ marginTop: "1rem" }}>
-            No reports yet.
-          </p>
-        )}
-      </section>
       {records && (
         <section className="panel section">
           <p className="eyebrow">Dataset records</p>
@@ -1008,6 +987,8 @@ function Maintainer() {
 }
 
 function MaintainerSession({ signOut }: { signOut: () => void }) {
+  const [language, setLanguage] = useState<Language>("en");
+  const t = messages[language];
   const signal = useRequestScope();
   const [token, setToken] = useState("");
   const [items, setItems] = useState<Feedback[] | null>(null);
@@ -1034,9 +1015,10 @@ function MaintainerSession({ signOut }: { signOut: () => void }) {
     <>
       <PageHeading
         eyebrow="Maintainer workspace"
-        title="Listen first. Publish with permission."
-        text="Private feedback stays here. Author permission is required before any item can appear publicly. Access tokens stay in this page’s memory."
+        title={t.workspaceTitle}
+        text={t.workspaceIntro}
       />
+      <LanguageSelect language={language} setLanguage={setLanguage} />
       {!items && (
         <form
           className="panel lookup"
@@ -1059,7 +1041,7 @@ function MaintainerSession({ signOut }: { signOut: () => void }) {
             />
           </label>
           <button className="btn primary" disabled={busy}>
-            Open feedback inbox
+            {t.openWorkspace}
           </button>
         </form>
       )}
@@ -1074,6 +1056,8 @@ function MaintainerSession({ signOut }: { signOut: () => void }) {
         </div>
       )}
       {error && <Failure />}
+      {items && <MaintainerData key={token} token={token} language={language} />}
+      {items && <h2 className="section">{t.feedback}</h2>}
       {items?.length === 0 && (
         <div className="panel empty section">
           <h2>Your inbox is clear.</h2>

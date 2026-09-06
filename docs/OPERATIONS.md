@@ -15,7 +15,12 @@ requests, so browser CORS credentials are unnecessary.
 
 The Node process reads environment variables. Use `node --env-file=.env
 server/index.js` to load a native .env, or Compose's own .env loading. Never put
-secrets in frontend build variables. Rotate the maintainer token in the
+secrets in frontend build variables. This token grants read/export access to all
+retained reporter contributions, including private raw reports and feedback,
+and feedback moderation. It does not require a participant lookup hash. Participant
+credentials permit shared aggregates/history and own raw reports/history only.
+The maintainer UI keeps the token in memory and cancels reads/downloads on logout.
+Rotate the maintainer token in the
 environment and restart; existing page tokens then fail authorization.
 
 SQLite supports the smallest single-process deployment. PostgreSQL supports

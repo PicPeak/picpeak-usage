@@ -1,6 +1,7 @@
 "use strict";
 const crypto = require("node:crypto");
 const { readSnapshot } = require("./database");
+const { contributionRows } = require("./maintainer");
 
 // One database snapshot per export, bounded pages and backpressure. A stalled
 // browser must not hold a DB connection/SQLite read transaction indefinitely.
@@ -10,6 +11,7 @@ async function streamExport({
   collector,
   credential,
   installationId,
+  maintainer = false,
 }) {
   const timeout = setTimeout(() => res.destroy(), 30000);
   timeout.unref();
@@ -31,7 +33,7 @@ async function streamExport({
     await readSnapshot(db, async (tx) => {
       if (installationId)
         await collector.requireInstallation(installationId, tx);
-      else await collector.reader(credential, tx);
+      else if (!maintainer) await collector.reader(credential, tx);
       const revision = await collector.revision(tx);
       const exportedAt = new Date(collector.now()).toISOString();
       const receiptId = crypto.randomUUID();
@@ -41,7 +43,21 @@ async function streamExport({
         "X-Export-Receipt": receiptId,
       });
       let count = 0;
-      if (installationId) {
+      if (maintainer) {
+        res.type("application/x-ndjson").attachment("picpeak-usage-maintainer.ndjson");
+        const counts = {};
+        await write(`${JSON.stringify({ type: "manifest", data: {
+          format: "maintainer-export.v1", revision, exported_at: exportedAt,
+          scope: installationId || "all_reporters",
+        } })}\n`);
+        for await (const record of contributionRows(tx, installationId)) {
+          counts[record.type] = (counts[record.type] || 0) + 1;
+          await write(`${JSON.stringify(record)}\n`);
+        }
+        await write(`${JSON.stringify({ type: "export_receipt", data: {
+          receipt_version: "export.v1", receipt_id: receiptId, exported_at: exportedAt, revision, counts,
+        } })}\n`);
+      } else if (installationId) {
         res.type("application/json").attachment("picpeak-usage-packets.json");
         await write(
           `${JSON.stringify({ installation_id: installationId }).slice(0, -1)},"packets":[`,
