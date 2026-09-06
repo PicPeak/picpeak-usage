@@ -71,5 +71,6 @@
   "inventorySemantics": "Sum of each reporter’s last report in the period, including drafts and archived records. Videos are not photos. Missing values in older schemas are unknown; changes in reporting installations change the total.",
   "inventoryReported": "Reporters supplying inventory totals",
   "inventorySummary": "Sum of the latest report per reporter. No per-gallery breakdown, filenames or image contents.",
-  "inventoryCatalog": "Totals describe currently stored database records, not upload activity or unique files. Thumbnails and videos are excluded from the photo total. Only these two numbers leave the installation."
+  "inventoryCatalog": "Totals describe currently stored database records, not upload activity or unique files. Thumbnails and videos are excluded from the photo total. Only these two numbers leave the installation.",
+  "distributionSemantics": "Shares use only reporters that supplied the selected field. Missing or null fields are unknown; an empty layout list means no layouts reported."
 }

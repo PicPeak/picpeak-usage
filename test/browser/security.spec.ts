@@ -4,6 +4,7 @@ const { createDatabase, migrate } = require("../../server/database");
 const { createApp } = require("../../server/app");
 const p = require("../../protocol/protocol.cjs");
 const crypto = require("node:crypto");
+const signedEnvelope = require("../helpers/signedEnvelope.cjs");
 const SECRET = "browser-security-fixture-only-123456789012345";
 const html = '<img src=x onerror="window.__injected=true">';
 
@@ -102,6 +103,36 @@ test('all v3 definitions are public in EN/DE and config-only use is never shown 
   await page.getByPlaceholder('Search features…').fill('OAuth');
   await expect(page.getByRole('meter')).toHaveCount(1);
 });
+test('partial legacy reports do not dilute percentages or turn missing totals into zero', async ({ page, collector }) => {
+  const id = p.generateIdentity();
+  const now = new Date();
+  for (const [action, sequence, payload] of [
+    ['register', 0, { consent_version: 'usage-consent.v1' }],
+    ['report', 1, { report_date: now.toISOString().slice(0, 10), generated_at: now.toISOString(), features: { crm: { used: true } } }],
+  ] as const) {
+    await collector.c.receive(signedEnvelope(p.makePacket(id, action, sequence, payload, 'usage.v1'), id, now));
+  }
+  await unlock(page, collector);
+  const history = page.locator('.usage-history');
+  await history.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('layouts');
+  await history.getByRole('combobox', { name: 'Display', exact: true }).selectOption('percent');
+  await history.getByText('Show values as a table', { exact: true }).click();
+  await expect(history.locator('tbody tr').last()).toContainText('100% (1/1)');
+  await history.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('versions');
+  await expect(history.locator('tbody tr').last()).toContainText('100% (1/1)');
+  await history.getByRole('combobox', { name: 'Reporters', exact: true }).selectOption('own');
+  // Log in as the sparse reporter to exercise the real missing-field response.
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await unlock(page, { ...collector, identity: id });
+  const ownHistory = page.locator('.usage-history');
+  await ownHistory.getByRole('combobox', { name: 'Reporters', exact: true }).selectOption('own');
+  await ownHistory.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('photos');
+  await ownHistory.getByText('Show values as a table', { exact: true }).click();
+  await expect(ownHistory.locator('tbody tr').last()).toContainText('Not reported');
+  await ownHistory.getByLabel('Language / Sprache').selectOption('de');
+  await expect(ownHistory.locator('tbody tr').last()).toContainText('Nicht gemeldet');
+});
+
 async function holdResponse(page: Page, pattern: string) {
   let release!: () => void, ready!: () => void, done!: () => void;
   const gate = new Promise<void>((resolve) => {

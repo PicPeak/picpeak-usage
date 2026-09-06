@@ -138,6 +138,8 @@ async function history(
         ),
         versions: {},
         layouts: {},
+        versions_reported: 0,
+        layouts_reported: 0,
         schema_versions: {},
       });
     }
@@ -179,7 +181,7 @@ async function history(
           addInventory(point.inventory, report);
           point.reporters++;
           for (const key of FEATURE_KEYS) {
-            const signal = report.features[key];
+            const signal = report.features?.[key];
             if (typeof signal?.configured === "boolean") {
               point.features[key].configured += Number(signal.configured);
               point.features[key].reported++;
@@ -189,9 +191,11 @@ async function history(
               point.features[key].used_reported++;
             }
           }
+          if (typeof report.picpeak_version === "string") point.versions_reported++;
+          if (Array.isArray(report.gallery_layouts)) point.layouts_reported++;
           for (const [map, values] of [
-            [point.versions, [report.picpeak_version]],
-            [point.layouts, report.gallery_layouts],
+            [point.versions, typeof report.picpeak_version === "string" ? [report.picpeak_version] : []],
+            [point.layouts, report.gallery_layouts || []],
             [point.schema_versions, [packet.schema_version]],
           ])
             for (const value of values) map[value] = (map[value] || 0) + 1;

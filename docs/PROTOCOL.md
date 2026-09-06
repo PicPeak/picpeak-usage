@@ -7,7 +7,7 @@ Browser transport is not implemented. CORS is not authentication.
 ## Exact envelope
 
 `POST /api/envelopes` accepts at most 16 KiB of uncompressed JSON. The complete
-closed JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, and `/schema/usage.v3.json`.
+closed sender JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, and `/schema/usage.v3.json`.
 The current bilingual field catalog is at `/schema/features.v3.json`; `/schema/features.v2.json` retains its original definitions. Unknown fields are rejected at
 every level. No arbitrary attributes or free-form telemetry are supported.
 
@@ -40,6 +40,51 @@ An accepted packet with matching digest receives its original non-secret receipt
 another data point. Conflicting packet IDs or sequences are rejected. A full
 clone of the same private key is cryptographically indistinguishable; local
 storage binding and diverging sequence detection provide additional safeguards.
+
+## Backward-compatible report reception
+
+All published report versions remain supported when the collector or PicPeak
+changes. The receiver selects the declared `packet.schema_version`, never the
+installed PicPeak version or the newest schema. A v3-consented installation may
+still deliver v1/v2 packets after an upgrade or restore. No current-release
+minimum is imposed on `picpeak_version`.
+
+The separate, closed reception schemas are published at
+`/schema/ingress/usage.v1.json`, `/schema/ingress/usage.v2.json` and
+`/schema/ingress/usage.v3.json`. For `report` only, they accept omitted or `null`
+measurements: `picpeak_version`, `features`, individual capabilities and their
+known `configured`/`used` members, `gallery_layouts`, and v3 `inventory` with
+either or both totals. Other supplied values retain their original types,
+bounds and per-version allowlists. A missing value is unknown, never false or
+zero; an explicit empty layout list is known and means no layouts were reported.
+
+The envelope, identity, signature, action, sequence, `report_date` and
+`generated_at` remain mandatory. Registration, consent, feedback and other
+actions retain their exact schemas. Unknown schema versions, extra fields,
+wrong types and fields outside the declared consent scope are not accepted.
+This prevents compatibility handling from admitting arbitrary sensitive data.
+
+`verifyReceivedEnvelope` validates partial reports and verifies the signature
+over the exact original object. Nothing is stripped, renamed, coerced or filled
+before signature verification or storage. Original envelopes, receipt digests
+and exports remain unchanged. `signPacket` and `verifyEnvelope` still enforce
+the immutable complete sender schemas, including all v1/v2/v3 fields.
+
+Delayed reports retain their original logical day in history and cannot replace
+a newer snapshot. There is no maximum report age; the signed transport envelope
+must still be fresh. Resending an old packet with a new issue time, nonce and
+signature is supported without changing its ID or payload. Existing sequence,
+idempotency, daily report limits, consent checks and deletion rules still apply.
+
+Aggregates and histories count known values independently for every field.
+`versions_reported` and `layouts_reported` provide the denominators for those
+distributions. Each period uses the reporter's latest complete or partial
+snapshot as a whole: missing fields are never carried forward from an earlier
+report. Opt-out removes partial contributions just like complete ones.
+
+Future changes must preserve all existing sender and reception contracts, add
+new measurements in a new consented schema, and pass the historical/partial
+report regression matrix. Do not reuse old keys with different meanings.
 
 ## Actions
 
