@@ -1,6 +1,13 @@
-node_modules/
+# Dependencies and generated output (also covers local dependency symlinks)
+node_modules
 dist/
 coverage/
+.nyc_output/
+.cache/
+.vite/
+*.tsbuildinfo
+
+# Local configuration and runtime data
 .env
 .env.*
 !.env.example
@@ -8,8 +15,39 @@ coverage/
 *.sqlite
 *.sqlite-*
 storage/
+
+# Editor, OS and assistant files
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+.codex/
+.cursor/
 AGENTS.md
+CLAUDE.md
+GEMINI.md
+WORKSPACE.md
+*.swp
+*.swo
+*.tmp
+*.temp
+*.orig
+*.rej
+
+# Local work notes and historical implementation/verification reports
+.local/
+/docs/local/
+/docs/MAINTAINER_HISTORY.md
+/docs/SECURITY_HARDENING.md
+/docs/VERIFICATION.md
+
+# Generated source archive and browser/test artifacts
 public/source.tar.gz
 test-results/
 playwright-report/
+blob-report/
+.playwright-mcp/
+/screenshot-*.png
+/screenshot-*.jpg
+/trace-*.zip

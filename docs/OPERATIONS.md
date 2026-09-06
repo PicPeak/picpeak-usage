@@ -153,6 +153,10 @@ delete/rejoin creates a fresh identity.
 UI. Inspect the archive when changing this list. Exclude .env, storage, Git,
 logs, screenshots, and agent files. The archive lets participants audit the
 deployed source even without a remote Git repository.
+Only the maintained design, operations, protocol and feature-coverage documents
+are included. Local implementation reports and notes in `.local/` or
+`docs/local/` are excluded even when building from a working directory where
+those files still exist.
 
 Protocol changes need a new schema version and synchronized PicPeak/collector
 copies. Run integration and PostgreSQL tests and both frontend builds. Deploy

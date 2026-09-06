@@ -78,6 +78,14 @@ TEST_DATABASE_URL=postgres://user:password@localhost/isolated_usage_test node --
 
 Integration tests run the real PicPeak service against the collector over local HTTP using isolated databases. They cover consent, cadence, raw export, privacy allowlisting, lost receipts, outages, deletion/rejoin, clone detection, feedback, and voting. Install PicPeak's backend dependencies first. Ordinary tests skip integration when the sibling checkout is missing; the explicit integration command fails instead. PostgreSQL tests create synthetic data in the supplied isolated database.
 
-See the [acceptance audit](docs/VERIFICATION.md) for requirement coverage and recorded verification.
+CI runs the required integration/browser checks, dependency audit, container
+build, runtime smoke test and image vulnerability scan. Test results belong
+in CI or local artifacts rather than dated reports in the source tree.
 
-MIT licensed. Local implementation does not create a GitHub repository or production deployment.
+Keep application code, tests, build configuration and maintained documentation
+in Git. The `docs/` directory contains the design reference, operating guide,
+protocol and feature coverage contract. Store local plans, audit notes and
+handoffs in `.local/` or `docs/local/`; these are excluded from Git, Docker and
+the downloadable source archive.
+
+MIT licensed.
