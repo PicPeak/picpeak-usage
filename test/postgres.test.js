@@ -19,7 +19,7 @@ test(
       c.receive(p.signPacket(packet, identity, new Date(now)));
     await send(
       p.makePacket(identity, "register", 0, {
-        consent_version: "usage-consent.v3",
+        consent_version: p.CURRENT_CONSENT_VERSION,
       }),
     );
     const iso = new Date(now).toISOString();

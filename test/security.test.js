@@ -51,7 +51,7 @@ async function fixture(t, engine, options = {}) {
   const register = async () => {
     const identity = p.generateIdentity();
     await send(identity, "register", 0, {
-      consent_version: "usage-consent.v3",
+      consent_version: p.CURRENT_CONSENT_VERSION,
     });
     return identity;
   };

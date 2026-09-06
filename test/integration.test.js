@@ -64,6 +64,7 @@ async function setup(t) {
     table.text("color_theme");
     table.text("external_path");
     table.integer("css_template_id");
+    table.boolean("allow_downloads").defaultTo(true);
   });
   await local.schema.createTable("photos", (table) => {
     table.increments("id"); table.string("media_type"); table.string("filename");
@@ -421,12 +422,12 @@ test(
   "protocol files are byte-identical in both repositories",
   { skip: !UsageService },
   async () => {
-    for (const file of ["schema.cjs", "protocol.cjs", "features.v2.json", "features.v3.json"])
+    for (const file of ["schema.cjs", "protocol.cjs", "features.v2.json", "features.v3.json", "features.v4.json"])
       assert.equal(
         await fs.readFile(path.join(root, "backend/src/usage", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../protocol", file), "utf8"),
       );
-    for (const file of ["usage-coverage.v2.json", "usage-coverage.v3.json", "FEATURE_COVERAGE.md"])
+    for (const file of ["usage-coverage.v2.json", "usage-coverage.v3.json", "usage-coverage.v4.json", "FEATURE_COVERAGE.md"])
       assert.equal(await fs.readFile(path.join(root, "docs", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../docs", file), "utf8"));
   },
@@ -528,7 +529,7 @@ for (const version of ['usage.v1', 'usage.v2']) test(`${version} to v3: lost rec
   const restarted = new UsageService(local, options);
   await restarted.tick({ force: true });
   assert.equal((await restarted.status()).schema_version, 'usage.v3');
-  assert.equal((await restarted.status()).consent_update_available, false);
+  assert.equal((await restarted.status()).consent_update_available, true);
   await restarted.markUsed(['crm_invoice_import', 'photo_replacement', 'face_recognition']);
   clock.value += 86400000; await restarted.tick();
   const report = (await restarted.status()).last_packet.packet.payload;
@@ -556,4 +557,86 @@ test('v3 consent arriving after withdrawal cannot restore collection or counts',
   assert.equal((await service.status()).status, 'disabled');
   assert.equal((await local('product_usage_markers')).length, 0);
   assert.deepEqual((await c.summary()).inventory.photos, { total: 0, reported: 0 });
+});
+
+for (const version of ['usage.v1', 'usage.v2', 'usage.v3']) test(`${version} to v4: lost receipts preserve queued reports and require confirmed new consent`, { skip: !UsageService }, async t => {
+  const { service, options, local, c, clock, transport } = await setup(t);
+  const p = require('../protocol/protocol.cjs');
+  await service.enable(p.CONSENT_VERSIONS[version]);
+  await service.markUsed(['crm']);
+  transport.loseReceipt = true;
+  await service.tick();
+  const queued = (await local('product_usage_state').first()).pending_packet;
+  const original = JSON.parse(queued);
+  const identity = original.installation_id;
+  const originalEnvelope = (await c.lookup(identity)).packets[0].envelope;
+  assert.deepEqual(originalEnvelope.packet, original);
+  assert.equal(original.schema_version, version);
+  assert.equal(original.payload.features.gallery_downloads_restricted, undefined);
+  // A new binary, day and changed source data must not rebuild the queued packet.
+  await local('events').update({ allow_downloads: false });
+  await local('photos').insert({ media_type: 'image', filename: 'PRIVATE-new-photo.jpg' });
+  clock.value += 86400000;
+  const restarted = new UsageService(local, options);
+  assert.equal((await local('product_usage_state').first()).pending_packet, queued);
+  const receipt = await restarted.deliver(await local('product_usage_state').first());
+  assert.equal(receipt.packet_digest, p.digest(p.canonical(original)));
+  const retried = (await restarted.status()).last_packet;
+  assert.deepEqual(retried.packet, original);
+  assert.notEqual(retried.nonce, originalEnvelope.nonce);
+  assert.notEqual(retried.issued_at, originalEnvelope.issued_at);
+  assert.equal((await c.lookup(identity)).packets.length, 1);
+  assert.deepEqual((await c.lookup(identity)).packets[0].envelope, originalEnvelope);
+
+  transport.loseReceipt = true;
+  const upgrade = await restarted.command('consent', { consent_version: 'usage-consent.v4' });
+  assert.equal(upgrade.delivered, false);
+  const queuedConsent = (await local('product_usage_state').first()).pending_packet;
+  assert.equal((await restarted.status()).schema_version, version);
+  assert.equal((await restarted.preview()).features.gallery_downloads_restricted, undefined);
+  assert.ok((await local('product_usage_markers').pluck('feature')).includes('crm'));
+  const again = new UsageService(local, options);
+  const consentReceipt = await again.deliver(await local('product_usage_state').first());
+  assert.equal(consentReceipt.packet_digest, p.digest(p.canonical(JSON.parse(queuedConsent))));
+  assert.equal((await again.status()).schema_version, 'usage.v4');
+  assert.equal((await again.status()).consent_update_available, false);
+  assert.deepEqual(await local('product_usage_markers').pluck('feature'), []);
+  await again.tick();
+  const current = (await again.status()).last_packet.packet;
+  assert.equal(current.schema_version, 'usage.v4');
+  assert.deepEqual(current.payload.features.gallery_downloads_restricted, { configured: true });
+  assert.equal(current.payload.features.gallery_downloads, undefined);
+  assert.deepEqual(current.payload.inventory, { galleries: 1, photos: 1 });
+  assert.notEqual(current.packet_id, original.packet_id);
+  assert.ok(!JSON.stringify(current).includes('PRIVATE'));
+  const raw = await c.lookup(identity);
+  assert.deepEqual(raw.packets.map(r => r.envelope.packet.schema_version), [version, 'usage.v4']);
+  assert.deepEqual(raw.packets[0].envelope, originalEnvelope);
+});
+
+test('v4 consent arriving after opt-out cannot restore collection', { skip: !UsageService }, async t => {
+  const { service, transport, local, c } = await setup(t);
+  await service.enable('usage-consent.v3'); await service.tick();
+  transport.afterResponse = async () => {
+    transport.afterResponse = null;
+    await service.disable();
+  };
+  await service.command('consent', { consent_version: 'usage-consent.v4' });
+  await service.tick({ force: true });
+  assert.equal((await service.status()).status, 'disabled');
+  assert.equal((await local('product_usage_markers')).length, 0);
+  assert.equal((await c.summary()).installations, 0);
+});
+
+test('pending v3 registration retries keep the originally approved scope on a v4 client', { skip: !UsageService }, async t => {
+  const { service, transport, local, options } = await setup(t);
+  transport.loseReceipt = true;
+  await service.enable('usage-consent.v3');
+  const pending = JSON.parse((await local('product_usage_state').first()).pending_packet);
+  assert.equal(pending.action, 'register');
+  const restarted = new UsageService(local, options);
+  const receipt = await restarted.deliver(await local('product_usage_state').first());
+  assert.equal(receipt.packet_id, pending.packet_id);
+  assert.equal((await restarted.status()).schema_version, 'usage.v3');
+  assert.equal((await restarted.preview()).features.gallery_downloads_restricted, undefined);
 });

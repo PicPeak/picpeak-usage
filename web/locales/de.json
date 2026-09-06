@@ -72,5 +72,7 @@
   "inventoryReported": "Reporter mit Bestandszahlen",
   "inventorySummary": "Summe des neuesten Berichts je Reporter. Keine Aufschlüsselung nach Galerien, keine Dateinamen oder Bildinhalte.",
   "inventoryCatalog": "Die Gesamtzahlen beschreiben aktuell gespeicherte Datenbankeinträge, keine Upload-Aktivität oder eindeutigen Dateien. Vorschaubilder und Videos zählen nicht zur Fotoanzahl. Nur diese beiden Zahlen verlassen die Installation.",
-  "distributionSemantics": "Anteile berücksichtigen nur Reporter, die das gewählte Feld geliefert haben. Fehlende oder null-Felder sind unbekannt; eine leere Layout-Liste bedeutet keine gemeldeten Layouts."
+  "distributionSemantics": "Anteile berücksichtigen nur Reporter, die das gewählte Feld geliefert haben. Fehlende oder null-Felder sind unbekannt; eine leere Layout-Liste bedeutet keine gemeldeten Layouts.",
+  "downloadSignals": "Erlaubte Downloads (v2/v3) und eingeschränkte Downloads (v4) sind getrennte Fragen. Verschiedene Galerien können beide Werte wahr machen. Alte Werte werden weder invertiert noch umgerechnet; fehlende Werte bleiben unbekannt.",
+  "allCapabilities": "Funktionen über alle Schemaversionen"
 }

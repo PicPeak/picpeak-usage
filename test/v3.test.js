@@ -46,12 +46,12 @@ test('v1 and v2 wire schemas are unchanged, and v3 stays below the packet limit'
     'usage.v2': '159821cf45c1951016d33a4ed9ca55a0a7ee1b60dd715b803fcfed33e5c8a846',
   })) assert.equal(crypto.createHash('sha256').update(JSON.stringify(p.envelopeSchemas[v].properties)).digest('hex'), hash);
   assert.equal(p.featureKeysFor('usage.v3').length, 86);
-  assert.equal(Object.values(p.CATALOG.features).filter(f => !f.used).length, 23);
+  assert.equal(Object.values(p.CATALOGS['usage.v3'].features).filter(f => !f.used).length, 23);
   const id = p.generateIdentity(), date = new Date('2026-09-06T12:00:00.000Z');
   const e = p.signPacket(p.makePacket(id, 'report', 1, {
     picpeak_version: '3.124.1-beta.0', generated_at: date.toISOString(), report_date: '2026-09-06',
-    gallery_layouts: p.LAYOUTS, features: p.emptyFeatures(), inventory: { galleries: 1000000000, photos: 1000000000 },
-  }), id, date);
+    gallery_layouts: p.LAYOUTS, features: p.emptyFeatures('usage.v3'), inventory: { galleries: 1000000000, photos: 1000000000 },
+  }, 'usage.v3'), id, date);
   assert.ok(Buffer.byteLength(JSON.stringify(e)) < p.MAX_BYTES);
 });
 
@@ -61,7 +61,7 @@ for (const engine of ['sqlite', ...(process.env.TEST_DATABASE_URL ? ['pg'] : [])
     const id = await register();
     for (const version of ['usage.v1', 'usage.v2', 'usage.v3'])
       assert.deepEqual((await request(app).get(`/schema/${version}.json`).expect(200)).body, p.envelopeSchemas[version]);
-    assert.deepEqual((await request(app).get('/schema/features.v3.json').expect(200)).body, p.CATALOG);
+    assert.deepEqual((await request(app).get('/schema/features.v3.json').expect(200)).body, p.CATALOGS["usage.v3"]);
     const good = payload();
     for (const mutate of [
       r => { delete r.inventory; }, r => { delete r.inventory.photos; },

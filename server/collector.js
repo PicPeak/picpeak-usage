@@ -6,7 +6,7 @@ const {
   canonical,
   ProtocolError,
   MAX_AGE_MS,
-  FEATURE_KEYS,
+  ALL_FEATURE_KEYS,
   CURRENT_SCHEMA_VERSION,
   schemaForConsent,
   schemaRank,
@@ -570,7 +570,7 @@ class Collector {
     const layouts = {};
     const schemaVersions = {};
     const features = Object.fromEntries(
-      FEATURE_KEYS.map((key) => [key, { configured: 0, used: 0, reported: 0, used_reported: 0 }]),
+      ALL_FEATURE_KEYS.map((key) => [key, { configured: 0, used: 0, reported: 0, used_reported: 0 }]),
     );
     let after = "";
     let installations = 0;
@@ -592,7 +592,7 @@ class Collector {
           versions[report.picpeak_version] = (versions[report.picpeak_version] || 0) + 1;
           versionsReported++;
         }
-        for (const key of FEATURE_KEYS) {
+        for (const key of ALL_FEATURE_KEYS) {
           const signal = report.features?.[key];
           // An older schema did not ask this question. Absence is NOT false.
           if (typeof signal?.configured === "boolean") {
