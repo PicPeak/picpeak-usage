@@ -1,13 +1,14 @@
 import v2 from "../protocol/features.v2.json";
 import v3 from "../protocol/features.v3.json";
 import v4 from "../protocol/features.v4.json";
+import v5 from "../protocol/features.v5.json";
 import de from "./locales/catalog.de.json";
 import type { Language } from "./historyLocale";
 
-export const catalog = v4;
+export const catalog = v5;
 // Keep retired questions available for historical comparisons under their
 // original names. They are distinct measurements, never aliases.
-export const historicalFeatures = { ...v2.features, ...v3.features, ...v4.features };
+export const historicalFeatures = { ...v2.features, ...v3.features, ...v4.features, ...v5.features };
 
 type FeatureText = { name: string; configured: string; used?: string };
 type InventoryText = { name: string; description: string };
@@ -33,3 +34,5 @@ export const featureText = (key: string, language: Language): FeatureText =>
   language === "de" ? germanFeatures[key] || englishFeatures[key] : englishFeatures[key];
 export const inventoryText = (key: string, language: Language): InventoryText =>
   language === "de" ? germanInventory[key] || englishInventory[key] : englishInventory[key];
+
+export const configurationKind = (key: string): string => historicalFeatures[key as keyof typeof historicalFeatures].configuration;

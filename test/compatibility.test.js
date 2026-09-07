@@ -147,7 +147,7 @@ for (const engine of ['sqlite', ...(process.env.TEST_DATABASE_URL ? ['pg'] : [])
       const payload = report(); mutate(payload);
       await request(app).post('/api/envelopes').send(envelope(id, 'report', 1, payload, version)).expect(400);
     }
-    for (const version of ['usage.v0', 'usage.v5', '__proto__', 'constructor'])
+    for (const version of ['usage.v0', 'usage.v6', '__proto__', 'constructor'])
       await request(app).post('/api/envelopes').send(envelope(id, 'report', 1, report(), version)).expect(400);
     const tampered = envelope(id, 'report', 1, report({ features: { crm: { used: true } } }));
     tampered.packet.payload.features.crm.used = false;

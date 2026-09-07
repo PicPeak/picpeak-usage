@@ -29,7 +29,7 @@ jobs:
         with:
           repository: PicPeak/picpeak
           # Includes the English-only catalogs from PicPeak/picpeak#1330.
-          ref: 1f09ac2d0d32a8270ccdb89eaf64a34d4200bea0
+          ref: 9396d019c6ab7cea81662193410c11ddfd77175c
           path: picpeak
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
