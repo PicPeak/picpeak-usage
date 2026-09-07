@@ -87,12 +87,12 @@ async function unlock(page: Page, collector: any) {
   ).toBeVisible();
 }
 
-test('all v4 definitions are public in EN/DE and config-only use is never shown as zero adoption', async ({ page, collector }) => {
+test('all v5 definitions are public in EN/DE and config-only use is never shown as zero adoption', async ({ page, collector }) => {
   await page.goto(`${collector.url}/transparency`);
   const catalog = page.locator('#feature-catalog');
-  await expect(catalog.locator('details')).toHaveCount(86);
+  await expect(catalog.locator('details')).toHaveCount(87);
   await catalog.getByLabel('Language / Sprache').selectOption('de');
-  await expect(catalog.getByRole('heading', { level: 2 })).toHaveText('Alle 86 Funktionssignale');
+  await expect(catalog.getByRole('heading', { level: 2 })).toHaveText('Alle 87 Funktionssignale');
   await expect(catalog).toContainText('Aktuelle Anzahl der Fotoeinträge ohne Videos');
   await expect(catalog).toContainText('Betreuer können');
   await catalog.getByRole('searchbox').fill('eingeschränkt');
@@ -177,7 +177,7 @@ test('old allowed-downloads and v4 restrictions stay separately selectable with 
   await chart.locator(".history-options > summary").click();
   await chart.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('configured');
   const feature = chart.getByRole('combobox', { name: 'Capability', exact: true });
-  await expect(feature.locator('option')).toHaveCount(87);
+  await expect(feature.locator('option')).toHaveCount(94);
   await chart.getByRole('combobox', { name: 'Display', exact: true }).selectOption('percent');
   await chart.getByText('Show values as a table', { exact: true }).click();
   await feature.selectOption('gallery_downloads');
@@ -187,11 +187,11 @@ test('old allowed-downloads and v4 restrictions stay separately selectable with 
   await expect(chart).toContainText('Older values are never inverted or converted');
   await chart.getByLabel('Language / Sprache').selectOption('de');
   await expect(chart).toContainText('Galerie-Downloads eingeschränkt');
-  await expect(chart.getByRole('heading', { name: 'Konfigurierte Funktion · Galerie-Downloads eingeschränkt', exact: true })).toBeVisible();
+  await expect(chart.getByRole('heading', { name: 'Verfügbarkeit / Konfiguration · Galerie-Downloads eingeschränkt', exact: true })).toBeVisible();
   const germanFeature = chart.getByRole('combobox', { name: 'Funktion', exact: true });
-  await expect(germanFeature.locator('option')).toHaveCount(87);
+  await expect(germanFeature.locator('option')).toHaveCount(94);
   await germanFeature.selectOption('gallery_downloads');
-  await expect(chart.getByRole('heading', { name: 'Konfigurierte Funktion · Galerie-Downloads erlaubt', exact: true })).toBeVisible();
+  await expect(chart.getByRole('heading', { name: 'Verfügbarkeit / Konfiguration · Galerie-Downloads erlaubt', exact: true })).toBeVisible();
   await expect(chart.locator('tbody tr').last()).toContainText('100% (1/1)');
 });
 
@@ -605,11 +605,11 @@ async function seedAdoption(collector: any) {
       report_date: now.toISOString().slice(0, 10), generated_at: now.toISOString(),
       ...(version === 'usage.v4' ? {
         picpeak_version: '1.2.3', gallery_layouts: ['grid'], inventory: { galleries: 12, photos: 450 },
-        features: { ...p.emptyFeatures(), crm: { configured: true, used: true }, video_uploads: { configured: true, used: true }, crm_quotes: { configured: true, used: index === 0 } },
+        features: { ...p.emptyFeatures(version), crm: { configured: true, used: true }, video_uploads: { configured: true, used: true }, crm_quotes: { configured: true, used: index === 0 } },
       } : { features: { crm: { used: true }, crm_quotes: { used: true } } }),
     };
     for (const [action, sequence, value] of [
-      ['register', 0, { consent_version: version === 'usage.v4' ? p.CURRENT_CONSENT_VERSION : 'usage-consent.v1' }],
+      ['register', 0, { consent_version: p.CONSENT_VERSIONS[version] }],
       ['report', 1, payload],
     ] as const) await collector.c.receive(signedEnvelope(p.makePacket(identity, action, sequence, value, version), identity, now));
   }
@@ -645,8 +645,8 @@ for (const width of [1280, 390]) test(`feature overview at ${width}px: ranks ado
   await expect(features.filter({ hasText: 'Client management' })).toHaveCount(0);
   await expect(features.filter({ hasText: 'Actual use is not collected.' })).toHaveCount(0);
   await overview.getByRole('button', { name: 'Configuration only', exact: false }).click();
-  await expect(features).toHaveCount(24);
-  await expect(features.filter({ hasText: 'Actual use is not collected.' })).toHaveCount(24);
+  await expect(features).toHaveCount(23);
+  await expect(features.filter({ hasText: 'Actual use is not collected.' })).toHaveCount(23);
   await overview.getByRole('button', { name: 'All features', exact: false }).click();
   await overview.getByRole('button', { name: 'Show all 87 features', exact: true }).click();
   await expect(features).toHaveCount(87);
@@ -663,7 +663,7 @@ for (const width of [1280, 390]) test(`feature overview at ${width}px: ranks ado
   await expect(features).toContainText('Actual use is not collected.');
   await expect(features.getByRole('meter')).toHaveCount(1);
   await features.getByRole('button', { name: 'View trend', exact: false }).click();
-  await expect(page.locator('.usage-history').getByRole('heading', { level: 3 })).toHaveText('Configured capability · Guest uploads enabled');
+  await expect(page.locator('.usage-history').getByRole('heading', { level: 3 })).toHaveText('Availability / configuration · Guest uploads enabled');
   await expect(page.locator('.usage-history')).toBeFocused();
   await language.selectOption('de');
   await overview.getByRole('searchbox').fill('CRM');
@@ -711,4 +711,47 @@ test('maintainer overview handles an empty community and cancels a pending summa
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await held.release();
   await expect(page.locator('.adoption-overview')).toHaveCount(0);
+});
+
+for (const width of [1280, 390]) test(`v5 at ${width}px distinguishes built-in availability, editing, delivery and historical answers`, async ({ page, collector }, testInfo) => {
+  const now = new Date();
+  for (const version of ['usage.v4', 'usage.v5']) {
+    const id = p.generateIdentity();
+    const features = version === 'usage.v4'
+      ? { cms: { configured: true, used: true }, email_templates: { configured: true, used: true } }
+      : { ...p.emptyFeatures(version), cms_content_editing: { configured: true, used: true },
+        email_template_editing: { configured: true, used: false }, email_template_delivery: { configured: true, used: true } };
+    for (const [action, sequence, payload] of [
+      ['register', 0, { consent_version: p.CONSENT_VERSIONS[version] }],
+      ['report', 1, { features, report_date: now.toISOString().slice(0, 10), generated_at: now.toISOString() }],
+    ] as const) await collector.c.receive(signedEnvelope(p.makePacket(id, action, sequence, payload, version), id, now));
+  }
+  await page.setViewportSize({ width, height: 1000 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(`${collector.url}/maintainer`);
+  await page.getByLabel('Maintainer access token').fill(SECRET);
+  await page.getByRole('button', { name: 'Open maintainer workspace' }).click();
+  const overview = page.locator('.adoption-overview');
+  await overview.getByRole('searchbox').fill('email_template_');
+  const edited = overview.getByRole('article', { name: 'Email template customization', exact: true });
+  const sent = overview.getByRole('article', { name: 'Emails sent using templates', exact: true });
+  await expect(edited).toContainText('Built in');
+  await expect(edited.getByRole('meter')).toHaveCount(1);
+  await expect(edited.getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
+  await expect(edited).toContainText('0 yes · 2 no · 1 unknown');
+  await expect(sent.getByRole('meter')).toHaveAttribute('aria-valuenow', '50');
+  await expect(sent).toContainText('1 yes · 1 no · 1 unknown');
+  await expect(overview.getByRole('article', { name: 'Email templates', exact: true })).toHaveCount(0);
+  await overview.screenshot({ path: testInfo.outputPath(`v5-template-evidence-en-${width}.png`), animations: 'disabled' });
+  await page.getByLabel('Language / Sprache').selectOption('de');
+  await expect(overview).toContainText('Fest integriert');
+  await expect(overview).toContainText('Annahme durch den Mailtransport belegt weder Empfang noch Lesen.');
+  await overview.screenshot({ path: testInfo.outputPath(`v5-template-evidence-de-${width}.png`), animations: 'disabled' });
+  await overview.getByRole('searchbox').fill('');
+  await overview.getByRole('button', { name: 'Von der Mehrheit genutzt', exact: false }).click();
+  await expect(overview.getByRole('article')).toHaveCount(0); // Old broad editor answers must not inflate current adoption.
+  await overview.getByRole('button', { name: 'Frühere Messungen', exact: false }).click();
+  await expect(overview.getByRole('article')).toHaveCount(7);
+  await expect(overview.getByRole('article', { name: 'E-Mail-Vorlagen', exact: true })).toContainText('Nur ältere Meldungen');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

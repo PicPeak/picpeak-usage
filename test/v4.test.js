@@ -49,8 +49,8 @@ test('v1/v2/v3 ingress schemas remain immutable; v4 has a separate closed catalo
     'usage.v2': '0e3e252db3b54ee531c0d3cc76118f2340f438af9a0ccdd147601bde4af77707',
     'usage.v3': 'ff45d1bef3da82f1eef7eb9b07ba231a1f077d914da4db0165bc063d945a79fb',
   })) assert.equal(crypto.createHash('sha256').update(JSON.stringify(p.ingressEnvelopeSchemas[v])).digest('hex'), hash);
-  assert.equal(p.FEATURE_KEYS.length, 86);
-  assert.equal(p.ALL_FEATURE_KEYS.length, 87);
+  assert.equal(p.featureKeysFor("usage.v4").length, 86);
+  assert.equal(p.ALL_FEATURE_KEYS.length, 94);
   assert.ok(!p.FEATURE_KEYS.includes('gallery_downloads'));
   assert.ok(p.ALL_FEATURE_KEYS.includes('gallery_downloads'));
   assert.equal(p.CATALOG.features.gallery_downloads_restricted.since, 'usage.v4');
@@ -70,8 +70,8 @@ for (const engine of ['sqlite', ...(process.env.TEST_DATABASE_URL ? ['pg'] : [])
   test(`${engine}: v4 requires new consent and keeps old report retries valid without changing their payload`, async t => {
     const { app, c, clock, register, envelope, report, send } = await fixture(t, engine);
     assert.deepEqual((await request(app).get('/api/health').expect(200)).body.supported_schemas,
-      ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4']);
-    assert.deepEqual((await request(app).get('/schema/features.v4.json').expect(200)).body, p.CATALOG);
+      ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4', 'usage.v5']);
+    assert.deepEqual((await request(app).get('/schema/features.v4.json').expect(200)).body, p.CATALOGS['usage.v4']);
     for (const version of ['usage.v1', 'usage.v2', 'usage.v3']) {
       const id = await register(version);
       const old = await send(id, 'report', report(version === 'usage.v1' ? null : { gallery_downloads: { configured: true } }));

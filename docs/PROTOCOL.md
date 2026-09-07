@@ -1,4 +1,4 @@
-# Versioned usage protocol (usage.v1 / usage.v2 / usage.v3 / usage.v4)
+# Versioned usage protocol (usage.v1 / usage.v2 / usage.v3 / usage.v4 / usage.v5)
 
 Implements the backend-signs/backend-sends decision in
 [#1110's transport follow-up](https://github.com/PicPeak/picpeak/issues/1110#issuecomment-5367220785).
@@ -7,16 +7,16 @@ Browser transport is not implemented. CORS is not authentication.
 ## Exact envelope
 
 `POST /api/envelopes` accepts at most 16 KiB of uncompressed JSON. The complete
-closed sender JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json`, and `/schema/usage.v4.json`.
-The current bilingual field catalog is at `/schema/features.v4.json`; the v2/v3 catalogs retain their original definitions. Unknown fields are rejected at
+closed sender JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json`, `/schema/usage.v4.json`, and `/schema/usage.v5.json`.
+The current field catalog is at `/schema/features.v5.json`; the v2/v3 catalogs retain their original definitions. Unknown fields are rejected at
 every level. No arbitrary attributes or free-form telemetry are supported.
 
 | Field                    | Meaning                                                       |
 | ------------------------ | ------------------------------------------------------------- |
-| `packet.schema_version`  | Literal `usage.v1`, `usage.v2`, `usage.v3` or `usage.v4`; never inferred from payload |
+| `packet.schema_version`  | Literal `usage.v1`, `usage.v2`, `usage.v3`, `usage.v4` or `usage.v5`; never inferred from payload |
 | `packet.installation_id` | SHA-256 of Ed25519 SPKI public-key DER, lowercase hex         |
 | `packet.packet_id`       | UUIDv4 identifying an immutable operation                     |
-| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2/v3/v4 also `consent` |
+| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2/v3/v4/v5 also `consent` |
 | `packet.sequence`        | 0 at registration; increments per accepted operation          |
 | `packet.payload`         | Action-specific closed schema, below                          |
 | `public_key`             | Ed25519 SPKI DER, unpadded base64url                          |
@@ -53,7 +53,7 @@ The separate, closed reception schemas are published at
 `/schema/ingress/usage.v1.json`, `/schema/ingress/usage.v2.json` and
 `/schema/ingress/usage.v3.json` and `/schema/ingress/usage.v4.json`. For `report` only, they accept omitted or `null`
 measurements: `picpeak_version`, `features`, individual capabilities and their
-known `configured`/`used` members, `gallery_layouts`, and v3/v4 `inventory` with
+known `configured`/`used` members, `gallery_layouts`, and v3/v4/v5 `inventory` with
 either or both totals. Other supplied values retain their original types,
 bounds and per-version allowlists. A missing value is unknown, never false or
 zero; an explicit empty layout list is known and means no layouts were reported.
@@ -104,7 +104,7 @@ receipt was lost. No migration or rewriting of stored reports is required.
 
 ## Actions
 
-- `register`: the matching `usage-consent.v1`, `usage-consent.v2`, `usage-consent.v3` or `usage-consent.v4`,
+- `register`: the matching `usage-consent.v1`, `usage-consent.v2`, `usage-consent.v3`, `usage-consent.v4` or `usage-consent.v5`,
   with sequence zero. A second
   different registration for the same identity conflicts.
 - `report`: `picpeak_version`, `report_date`, `generated_at`, `features`, and
@@ -307,3 +307,32 @@ portal requests never set markers or cause reports.
   former identity. Short-lived global abuse counters have no identity linkage.
   A deletion response also carries an identity-free confirmation for the user
   to retain. See OPERATIONS.md for the full retention inventory and upgrade rules.
+
+## usage.v5 precise editing and template-mail evidence
+
+v5 retains 80 v4 keys unchanged, replaces six broad admin-management questions
+with distinct editing keys, and adds `email_template_delivery`: 87 active keys,
+64 configured/used pairs and 23 configuration-only signals. All 94 historical
+keys remain independently queryable. Replacement keys never inherit the old
+answers, since those can include previews or unchanged saves. See
+[the complete audit](FEATURE_COVERAGE.md) for every capability and definition.
+
+`configured` continues to mean availability or technical configuration. The UI
+shows built-in availability as a label rather than an adoption percentage;
+flags and present settings can be defaults. New edit bits require a real local
+admin change since confirmed v5 consent. They do not prove the current design,
+current non-default settings or customization before consent.
+
+The mail bit is independent of editing: a shipped template can be used without
+being customized. Real template-mail transport acceptance, including background
+sends, sets one bit; preview, test and template-free sends do not. No recipient,
+content, template key, message ID, action time, frequency or extra count enters
+the usage subsystem. Transport acceptance proves neither receipt nor reading.
+There are no visitor/customer tracking hooks or retrospective content scans.
+
+The v5 receiver schema is `/schema/ingress/usage.v5.json`. Missing fields remain
+unknown; v1–v4 envelopes retain their exact allowlists and validation. Confirmed
+`usage-consent.v5` is required before collecting new bits. Pending packets finish
+unchanged, local markers reset only on the matching consent receipt, and late
+responses cannot reverse opt-out. The existing two inventory totals and stable
+pseudonymous installation identity remain unchanged. Deploy collector first.

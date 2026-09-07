@@ -422,12 +422,12 @@ test(
   "protocol files are byte-identical in both repositories",
   { skip: !UsageService },
   async () => {
-    for (const file of ["schema.cjs", "protocol.cjs", "features.v2.json", "features.v3.json", "features.v4.json"])
+    for (const file of ["schema.cjs", "protocol.cjs", "features.v2.json", "features.v3.json", "features.v4.json", "features.v5.json"])
       assert.equal(
         await fs.readFile(path.join(root, "backend/src/usage", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../protocol", file), "utf8"),
       );
-    for (const file of ["usage-coverage.v2.json", "usage-coverage.v3.json", "usage-coverage.v4.json", "FEATURE_COVERAGE.md"])
+    for (const file of ["usage-coverage.v2.json", "usage-coverage.v3.json", "usage-coverage.v4.json", "usage-coverage.v5.json", "FEATURE_COVERAGE.md"])
       assert.equal(await fs.readFile(path.join(root, "docs", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../docs", file), "utf8"));
     const client = JSON.parse(await fs.readFile(path.join(root, "frontend/src/i18n/locales/de.json"), "utf8")).productUsage;
@@ -604,7 +604,7 @@ for (const version of ['usage.v1', 'usage.v2', 'usage.v3']) test(`${version} to 
   const consentReceipt = await again.deliver(await local('product_usage_state').first());
   assert.equal(consentReceipt.packet_digest, p.digest(p.canonical(JSON.parse(queuedConsent))));
   assert.equal((await again.status()).schema_version, 'usage.v4');
-  assert.equal((await again.status()).consent_update_available, false);
+  assert.equal((await again.status()).consent_update_available, true); // v5 is a separate, still-unapproved expansion
   assert.deepEqual(await local('product_usage_markers').pluck('feature'), []);
   await again.tick();
   const current = (await again.status()).last_packet.packet;
@@ -644,4 +644,41 @@ test('pending v3 registration retries keep the originally approved scope on a v4
   assert.equal(receipt.packet_id, pending.packet_id);
   assert.equal((await restarted.status()).schema_version, 'usage.v3');
   assert.equal((await restarted.preview()).features.gallery_downloads_restricted, undefined);
+});
+
+for (const version of ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4']) test(`${version} to v5 preserves pending packets and starts precise evidence only after confirmed consent`, { skip: !UsageService }, async t => {
+  const { service, local, c, clock, transport, options } = await setup(t);
+  const p = require('../protocol/protocol.cjs');
+  await service.enable(p.CONSENT_VERSIONS[version]);
+  await service.markUsed(['crm', 'cms', 'email_template_editing', 'email_template_delivery']);
+  assert.deepEqual((await local('product_usage_markers').pluck('feature')).sort(), version === 'usage.v1' ? ['crm'] : ['cms', 'crm']);
+  transport.loseReceipt = true;
+  await service.tick();
+  const pending = JSON.parse((await local('product_usage_state').first()).pending_packet);
+  assert.equal(pending.schema_version, version);
+  assert.equal(pending.payload.features.email_template_editing, undefined);
+  const restarted = new UsageService(local, options);
+  await restarted.deliver(await local('product_usage_state').first());
+  transport.loseReceipt = true;
+  await restarted.command('consent', { consent_version: 'usage-consent.v5' });
+  await restarted.markUsed(['email_template_editing', 'email_template_delivery']);
+  assert.equal((await restarted.status()).schema_version, version);
+  assert.ok(!(await local('product_usage_markers').pluck('feature')).includes('email_template_delivery'));
+  const again = new UsageService(local, options);
+  await again.deliver(await local('product_usage_state').first());
+  assert.equal((await again.status()).schema_version, 'usage.v5');
+  assert.equal((await again.status()).consent_update_available, false);
+  assert.deepEqual(await local('product_usage_markers').pluck('feature'), []);
+  await again.markUsed(['cms', 'email_template_delivery', 'PRIVATE@example.test']);
+  assert.deepEqual(await local('product_usage_markers').pluck('feature'), ['email_template_delivery']);
+  const preview = await again.preview();
+  assert.equal(preview.features.cms, undefined);
+  assert.deepEqual(preview.features.cms_content_editing, { configured: true, used: false });
+  assert.deepEqual(preview.features.email_template_editing, { configured: true, used: false });
+  assert.deepEqual(preview.features.email_template_delivery, { configured: true, used: true });
+  const raw = await c.lookup((await again.status()).installation_id);
+  assert.deepEqual(raw.packets[0].envelope.packet, pending);
+  await again.disable();
+  await again.markUsed(['email_template_delivery']);
+  assert.deepEqual(await local('product_usage_markers').pluck('feature'), []);
 });

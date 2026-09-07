@@ -40,6 +40,6 @@ export function FeatureCatalog() {
         : t.catalogConfigurationOnly}</p>
     </details>)}
     {!entries.length && <p>{t.catalogEmpty}</p>}
-    <p><a className="textlink ink" href="/schema/features.v4.json">JSON: features.v4</a></p>
+    <p><a className="textlink ink" href="/schema/features.v5.json">JSON: features.v5</a></p>
   </section>;
 }

@@ -703,28 +703,29 @@ function Transparency() {
             A pseudonymous installation fingerprint, schema version, packet ID
             and sequence, signature metadata, PicPeak version, UTC report date,
             generation time, feature booleans, controlled gallery layout
-            values, and (with v3 or v4 consent) two installation totals: stored galleries
+            values, and (with v3, v4 or v5 consent) two installation totals: stored galleries
             and photo records excluding videos. Drafts and retained archived records are included.
           </p>
           <p>
             Configured means the capability is enabled or has relevant
             configuration; built-in capabilities mean available, not used.
-            Used means an allowlisted successful admin capability operation
+            Used means a disclosed observation (usually a successful admin capability operation)
             since consent to the current schema. v1 measures since joining;
             explicitly upgrading the schema restarts local markers. It is a yes/no signal,
             never a frequency. Configuration-only fields omit used entirely.
           </p>
-          <p>All four schema versions remain supported. Existing v1/v2/v3 participants
-            keep their previous scope until they explicitly consent to v4 in PicPeak.
-            The current v4 catalog explains 86 capability signals and two inventory totals.
-            Historical views additionally preserve the retired v2/v3 allowed-downloads question.
+          <p>All five schema versions remain supported. Existing v1/v2/v3/v4 participants
+            keep their previous scope until they explicitly consent to v5 in PicPeak.
+            The current v5 catalog explains 87 capability signals and two inventory totals. New edit signals exclude unchanged saves and previews; template-mail use includes real background sends accepted by the mail transport, never test messages.
+            Historical views preserve earlier broad editor measurements and the retired v2/v3 allowed-downloads question separately.
             Older and partial reports remain supported; omitted or null measurements are unknown.</p>
           <p>
             Layouts: grid, masonry, carousel, timeline, mosaic, gallery-premium,
             gallery-story, or other. We never include the number of galleries
             using them.
           </p>
-          <a className="btn" href="/schema/usage.v4.json">JSON schema: usage.v4</a>{" "}
+          <a className="btn" href="/schema/usage.v5.json">JSON schema: usage.v5</a>{" "}
+          <a className="btn" href="/schema/usage.v4.json">Legacy schema: usage.v4</a>{" "}
           <a className="btn" href="/schema/usage.v3.json">Legacy schema: usage.v3</a>{" "}
           <a className="btn" href="/schema/usage.v2.json">Legacy schema: usage.v2</a>{" "}
           <a className="btn" href="/schema/usage.v1.json">Legacy schema: usage.v1</a>
