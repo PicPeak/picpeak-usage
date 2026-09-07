@@ -88,6 +88,20 @@ test('all v4 definitions are public in EN/DE and config-only use is never shown 
   await expect(catalog.locator('details')).toHaveCount(86);
   await catalog.getByLabel('Language / Sprache').selectOption('de');
   await expect(catalog.getByRole('heading', { level: 2 })).toHaveText('Alle 86 Funktionssignale');
+  await expect(catalog).toContainText('Aktuelle Anzahl der Fotoeinträge ohne Videos');
+  await expect(catalog).toContainText('Betreuer können');
+  await catalog.getByRole('searchbox').fill('eingeschränkt');
+  await expect(catalog.locator('details')).toHaveCount(1);
+  await catalog.locator('summary').click();
+  await expect(catalog.locator('details')).toContainText('Galerie-Downloads eingeschränkt');
+  await expect(catalog.locator('details')).toContainText('Mindestens eine Galerie hat Downloads abgeschaltet');
+  await catalog.getByLabel('Language / Sprache').selectOption('en');
+  await expect(catalog.locator('details')).toHaveCount(0);
+  await expect(catalog).toContainText('No matching capabilities.');
+  await catalog.getByRole('searchbox').fill('restricted');
+  await expect(catalog.locator('details')).toHaveCount(1);
+  await expect(catalog.locator('details')).toContainText('Gallery downloads restricted');
+  await catalog.getByLabel('Language / Sprache').selectOption('de');
   await catalog.getByRole('searchbox').fill('gallery_feedback_likes');
   await expect(catalog.locator('details')).toHaveCount(1);
   await catalog.locator('summary').click();
@@ -168,6 +182,12 @@ test('old allowed-downloads and v4 restrictions stay separately selectable with 
   await expect(chart).toContainText('Older values are never inverted or converted');
   await chart.getByLabel('Language / Sprache').selectOption('de');
   await expect(chart).toContainText('Galerie-Downloads eingeschränkt');
+  await expect(chart.getByRole('heading', { name: 'Konfigurierte Funktion · Galerie-Downloads eingeschränkt', exact: true })).toBeVisible();
+  const germanFeature = chart.getByRole('combobox', { name: 'Funktion', exact: true });
+  await expect(germanFeature.locator('option')).toHaveCount(87);
+  await germanFeature.selectOption('gallery_downloads');
+  await expect(chart.getByRole('heading', { name: 'Konfigurierte Funktion · Galerie-Downloads erlaubt', exact: true })).toBeVisible();
+  await expect(chart.locator('tbody tr').last()).toContainText('100% (1/1)');
 });
 
 async function holdResponse(page: Page, pattern: string) {

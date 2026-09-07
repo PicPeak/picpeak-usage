@@ -7,6 +7,32 @@ const { createDatabase, migrate } = require('../server/database');
 const { createApp } = require('../server/app');
 const p = require('../protocol/protocol.cjs');
 
+test('English source catalogs have complete German translations, including retired questions and inventory', () => {
+  const de = require('../web/locales/catalog.de.json');
+  const history = Object.assign({}, ...Object.values(p.CATALOGS).map(c => c.features));
+  assert.deepEqual(Object.keys(de.features).sort(), Object.keys(history).sort());
+  for (const catalog of Object.values(p.CATALOGS)) {
+    for (const [key, definition] of Object.entries(catalog.features)) {
+      for (const field of ['name', 'configured', 'used']) {
+        if (!definition[field]) continue;
+        assert.deepEqual(Object.keys(definition[field]), ['en'], `${key}.${field}: English source only`);
+        assert.equal(typeof de.features[key][field], 'string', `${key}.${field}: German translation missing`);
+        assert.ok(de.features[key][field].trim());
+      }
+    }
+  }
+  assert.deepEqual(Object.keys(de.inventory).sort(), Object.keys(p.CATALOG.inventory).sort());
+  for (const [key, definition] of Object.entries(p.CATALOG.inventory)) {
+    for (const field of ['name', 'description']) {
+      assert.deepEqual(Object.keys(definition[field]), ['en']);
+      assert.equal(typeof de.inventory[key][field], 'string');
+      assert.ok(de.inventory[key][field].trim());
+    }
+  }
+  assert.deepEqual(Object.keys(require('../web/locales/en.json')).sort(),
+    Object.keys(require('../web/locales/de.json')).sort());
+});
+
 async function fixture(t, engine) {
   let db;
   if (engine === 'pg') {

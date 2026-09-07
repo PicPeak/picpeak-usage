@@ -430,6 +430,11 @@ test(
     for (const file of ["usage-coverage.v2.json", "usage-coverage.v3.json", "usage-coverage.v4.json", "FEATURE_COVERAGE.md"])
       assert.equal(await fs.readFile(path.join(root, "docs", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../docs", file), "utf8"));
+    const client = JSON.parse(await fs.readFile(path.join(root, "frontend/src/i18n/locales/de.json"), "utf8")).productUsage;
+    assert.deepEqual(require("../web/locales/catalog.de.json"), {
+      features: client.catalog,
+      inventory: client.inventory,
+    });
   },
 );
 

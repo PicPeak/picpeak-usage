@@ -74,5 +74,13 @@
   "inventoryCatalog": "Totals describe currently stored database records, not upload activity or unique files. Thumbnails and videos are excluded from the photo total. Only these two numbers leave the installation.",
   "distributionSemantics": "Shares use only reporters that supplied the selected field. Missing or null fields are unknown; an empty layout list means no layouts reported.",
   "downloadSignals": "Allowed downloads (v2/v3) and restricted downloads (v4) are separate questions. Different galleries can make both true. Older values are never inverted or converted; missing values stay unknown.",
-  "allCapabilities": "Capabilities across all schemas"
+  "allCapabilities": "Capabilities across all schemas",
+  "catalogTitle": "All 86 capability signals",
+  "catalogSearch": "Search capability name or key",
+  "catalogDisclosure": "usage.v4: 63 configured/used pairs, 23 configuration-only booleans and two inventory totals. Capability markers contain no person, action history or visitor observation. Built-in means available, not used. Accepted jobs count as initiated, not necessarily completed.",
+  "catalogVersionDisclosure": "v1/v2/v3 keep their previous scope unchanged. Only explicit v4 consent replaces the question about allowed downloads with the question about restricted downloads, restarting the local used observation period. Unreported fields are unknown. Raw reports retain their original version.",
+  "catalogConfigured": "Configured",
+  "catalogUsed": "Used",
+  "catalogConfigurationOnly": "Configuration only — actual use is not collected.",
+  "catalogEmpty": "No matching capabilities."
 }

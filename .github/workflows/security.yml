@@ -28,8 +28,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: PicPeak/picpeak
-          # Exact compatible client; remains reproducible after branch cleanup.
-          ref: ef8a52f02c4afa10dbc5fccafb6030b1aedc936c
+          # Includes the English-only catalogs from PicPeak/picpeak#1330.
+          ref: 1f09ac2d0d32a8270ccdb89eaf64a34d4200bea0
           path: picpeak
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
