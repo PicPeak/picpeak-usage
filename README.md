@@ -39,7 +39,15 @@ selected reporter. Authentication internals and deployment secrets are not usage
 contributions and are excluded. Maintainer read access does not authorize public
 or marketing publication of feedback.
 
-Participants and maintainers can explore daily, weekly or monthly UTC histories
+Participants and maintainers start with a shared feature overview: configuration
+and use side by side, ranked by the share of installations reporting each field.
+Quick views highlight majority use, no reported use and configuration-only
+features. Yes/no/unknown counts show the coverage behind each percentage; actual
+use that is not collected is labelled separately. The initial list shows eight
+features, with search and an option to show all historical capabilities.
+
+Each feature's “View trend” shortcut opens its history directly. Detailed filters
+remain available under “Explore history”. Participants and maintainers can explore daily, weekly or monthly UTC histories
 of reporting installations, report counts, capability configuration/use, gallery/photo totals, versions,
 layouts and schemas. Each installation contributes its last report **within**
 each period; gaps are not carried forward and reporting more often gives no
