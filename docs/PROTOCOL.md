@@ -267,6 +267,12 @@ portal requests never set markers or cause reports.
 - `POST /api/participant/packets`: bounded UI preview. Body `installation_id`,
   optionally `after` (last UTC report date) and `revision` from the previous page.
   Returns up to 200 packets, `next` and `revision`. On `DATASET_CHANGED`, restart.
+- `GET /api/participant/session`: requires a live voting bearer token and returns
+  `installation_id` (the read-only hash), the original UTC `expires_at`, published
+  `requests` with the participant's votes, and `next`. Reading this endpoint
+  never extends the session. On `#connect`, the portal removes the fragment and
+  keeps both credentials only in page memory. Reads use the hash; expiry removes
+  voting access without discarding that hash. Sign-out and reload clear both.
 - Public requests/testimonials and the maintainer inbox return up to 200 items,
   ordered by immutable ID. Follow `X-Next-Cursor` with `?after=<id>`; refresh from
   the start to discover concurrent new publications. Voting-session responses

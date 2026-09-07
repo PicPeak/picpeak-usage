@@ -24,6 +24,12 @@ export interface Feedback {
   allow_marketing?: boolean;
   published?: boolean;
 }
+export interface ParticipantSession {
+  installation_id: string;
+  expires_at: string;
+  requests: Feedback[];
+  next: string | null;
+}
 export async function api<T>(
   path: string,
   options: {

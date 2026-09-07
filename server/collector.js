@@ -481,14 +481,18 @@ class Collector {
   }
 
   async participant(token, db = this.db) {
+    return (await this.participantSession(token, db)).installation_id;
+  }
+
+  async participantSession(token, db = this.db) {
     if (!/^ppus_[a-f0-9]{64}$/.test(token || ""))
       throw new ProtocolError("PARTICIPANT_AUTH_REQUIRED", 401);
     const session = await db("sessions")
       .where({ token_hash: digest(token) })
       .where("expires_at", ">", this.now())
-      .first();
+      .first("installation_id", "expires_at");
     if (!session) throw new ProtocolError("PARTICIPANT_AUTH_REQUIRED", 401);
-    return session.installation_id;
+    return session;
   }
 
   async publicFeedback(
