@@ -57,6 +57,14 @@ historical contributions. Choose a date range or all retained history, inspect
 the chart/table, and download the selected history as JSON. New history and data
 views are available in English and German.
 
+A single language selector in the header controls the entire portal, including
+navigation, sign-in, dashboards, requests, transparency and maintainer tools.
+An explicit choice is saved locally as `picpeak-usage-language` and applies across
+pages and reloads; otherwise the browser language is used (German or English).
+If local storage is unavailable, the choice works in page memory. Changing language
+preserves current filters, form inputs and sessions; report payloads and submitted
+feedback stay unchanged. No credentials are saved with the language preference.
+
 ## Deploy and audit
 
 Set MAINTAINER_TOKEN in your environment or Compose .env, then:

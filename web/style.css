@@ -336,6 +336,7 @@ select {
   letter-spacing: 0;
 }
 .topbar nav {
+  flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -863,10 +864,41 @@ blockquote cite {
   margin-top: 0;
 }
 
-/* ---------- Maintainer ---------- */
-.maintainer-language {
+.retention-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+}
+.retention-table th,
+.retention-table td {
+  vertical-align: top;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* ---------- Page language ---------- */
+.page-language {
+  margin-left: auto;
+}
+.page-language label {
   display: flex;
-  margin-bottom: 1.5rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+.page-language select {
+  width: auto;
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .page-language label > span {
+    display: none;
+  }
+  .topbar {
+    column-gap: 0.75rem;
+  }
 }
 
 /* ---------- Feature overview ---------- */

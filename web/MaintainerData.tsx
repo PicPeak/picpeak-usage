@@ -1,3 +1,4 @@
+import { useLocale } from "./Locale";
 import { useEffect, useState } from "react";
 import { api, downloadWith, stamp, type Summary } from "./api";
 import { History } from "./History";
@@ -22,13 +23,11 @@ type ReporterPage = {
 
 export function MaintainerData({
   token,
-  language,
 }: {
   token: string;
-  language: Language;
 }) {
   const signal = useRequestScope();
-  const t = messages[language];
+  const { language, t } = useLocale();
   const [result, setResult] = useState<ReporterPage | null>(null);
   const [selected, setSelected] = useState<Reporter | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -83,18 +82,17 @@ export function MaintainerData({
       </div>}
       {!summary && !summaryError && <p role="status">{t.loading}</p>}
       {summary && <>
-        <FeatureAdoption data={summary} language={language} onExplore={value => {
+        <FeatureAdoption data={summary} onExplore={value => {
           setSelected(null);
           setSelection(value);
         }} />
-        <InventorySummary inventory={summary.inventory} language={language} />
+        <InventorySummary inventory={summary.inventory} />
       </>}
       <History
-        key={`${selected?.id || "all"}:${epoch}`}
+        key={`history:${selected?.id || "all"}:${epoch}`}
         token={token}
         maintainer
         reporter={selected?.id}
-        language={language}
         selection={selected ? undefined : selection}
       />
       {selected && (
@@ -207,7 +205,7 @@ export function MaintainerData({
       </section>
       {selected && (
         <ReporterDetails
-          key={`${selected.id}:${epoch}`}
+          key={`reporter:${selected.id}:${epoch}`}
           token={token}
           reporter={selected}
           language={language}
