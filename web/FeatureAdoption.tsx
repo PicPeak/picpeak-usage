@@ -1,22 +1,20 @@
+import { useLocale } from "./Locale";
 import { useState } from "react";
 import type { Summary } from "./api";
 import { catalog, featureText, configurationKind } from "./catalog";
-import { LanguageSelect, messages, type Language } from "./historyLocale";
+import { messages, type Language } from "./historyLocale";
 
 export type FeatureSelection = { feature: string };
 type View = "all" | "majority" | "unused" | "configuration" | "historical";
 const PREVIEW_SIZE = 8;
 
 export function FeatureAdoption({
-  data, language: parentLanguage, onExplore,
+  data, onExplore,
 }: {
   data: Summary;
-  language?: Language;
   onExplore: (selection: FeatureSelection) => void;
 }) {
-  const [localLanguage, setLanguage] = useState<Language>("en");
-  const language = parentLanguage || localLanguage;
-  const t = messages[language];
+  const { language, t } = useLocale();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<View>("all");
   const [showAll, setShowAll] = useState(false);
@@ -51,7 +49,6 @@ export function FeatureAdoption({
         <p className="eyebrow">{t.adoptionEyebrow}</p>
         <h2>{t.adoptionTitle}</h2>
       </div>
-      {!parentLanguage && <LanguageSelect language={language} setLanguage={setLanguage} />}
     </div>
     <p className="small muted section">{t.adoptionIntro}</p>
     <dl className="adoption-stats">

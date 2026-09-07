@@ -1,11 +1,10 @@
+import { useLocale } from "./Locale";
 import { useState } from "react";
 import { catalog, featureText, inventoryText } from "./catalog";
-import { LanguageSelect, messages, type Language } from "./historyLocale";
 
 export function FeatureCatalog() {
-  const [lang, setLang] = useState<Language>("en");
+  const { language: lang, t } = useLocale();
   const [search, setSearch] = useState("");
-  const t = messages[lang];
   const entries = Object.entries(catalog.features)
     .map(([key, value]) => ({ key, value, text: featureText(key, lang) }))
     .filter(({ key, text }) =>
@@ -13,7 +12,6 @@ export function FeatureCatalog() {
   return <section className="panel section" id="feature-catalog" lang={lang}>
     <h2>{t.catalogTitle}</h2>
     <div className="controls">
-      <LanguageSelect language={lang} setLanguage={setLang} />
       <label>{t.catalogSearch}
         <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} />
       </label>

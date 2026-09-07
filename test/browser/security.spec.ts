@@ -74,6 +74,178 @@ const test = base.extend<{ collector: any }>({
   },
 });
 
+const languagePreference = "picpeak-usage-language";
+const german = require("../../web/locales/de.json");
+
+async function rendered(page: Page) {
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  ));
+}
+
+for (const width of [1280, 390]) {
+  test(`global language at ${width}px: one control on every route, shared navigation and reload preference`, async ({ page, collector }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(collector.url);
+    const language = page.getByLabel("Language / Sprache", { exact: true });
+    await expect(language).toHaveCount(1);
+    await language.selectOption("de");
+    await expect(page.locator("html")).toHaveAttribute("lang", "de");
+    const nav = page.getByRole("navigation", { name: "Hauptnavigation" });
+    for (const [path, label] of [["/packets", "Deine Berichte"], ["/requests", "Funktionswünsche"], ["/transparency", "Transparenz"], ["/", "Übersicht"]]) {
+      await nav.getByRole("link", { name: label, exact: true }).click();
+      await expect(page).toHaveURL(collector.url + path);
+      await expect(page).toHaveTitle(`${label} · PicPeak Nutzung`);
+      await expect(language).toHaveCount(1);
+      await expect(language).toHaveValue("de");
+    }
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: german.transparencyTitle })).toBeVisible();
+    await expect(page.getByRole("heading", { name: german.catalogTitle })).toBeVisible();
+    await page.getByRole("searchbox").fill("gallery_downloads");
+    await language.selectOption("en");
+    await expect(page.getByRole("searchbox")).toHaveValue("gallery_downloads");
+    await expect(page.locator("#feature-catalog details")).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "The rules are part of the product." })).toBeVisible();
+    await language.selectOption("de");
+    for (const [path, heading] of [["/maintainer", german.workspaceTitle], ["/does-not-exist", german.notFoundTitle], ["/packets", german.packetsTitle], ["/requests", german.requestsTitle], ["/transparency", german.transparencyTitle]]) {
+      await page.goto(collector.url + path);
+      await expect(language).toHaveCount(1);
+      await expect(page.locator(".topbar").getByLabel("Language / Sprache")).toHaveValue("de");
+      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`global-transparency-de-${width}.png`), animations: "disabled" });
+    await page.reload();
+    await expect(language).toHaveValue("de");
+    expect(await page.evaluate(() => ({ ...localStorage }))).toEqual({ [languagePreference]: "de" });
+    expect(await page.evaluate(() => [sessionStorage.length, document.cookie])).toEqual([0, ""]);
+  });
+
+  test(`global language at ${width}px: participant inputs, filters and session survive without reloading reports`, async ({ page, collector }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(`${collector.url}/#adoption`);
+    const language = page.getByLabel("Language / Sprache", { exact: true });
+    await page.getByLabel("Installation lookup hash").fill(collector.identity.installation_id);
+    await language.selectOption("de");
+    await expect(page.getByLabel(german.lookupHash)).toHaveValue(collector.identity.installation_id);
+    await page.getByRole("button", { name: "Dashboard öffnen", exact: true }).click();
+    await expect(page.getByRole("heading", { name: german.adoptionTitle })).toBeVisible();
+    await expect(page.getByRole("heading", { name: german.inventoryTitle })).toBeVisible();
+    await expect(page.getByRole("heading", { name: german.history, exact: true })).toBeVisible();
+    await expect(language).toHaveCount(1);
+    const adoption = page.locator("#adoption"), chart = page.locator(".usage-history");
+    await adoption.getByRole("searchbox").fill("crm");
+    await adoption.getByRole("button", { name: german.adoptionUnused, exact: false }).click();
+    await chart.locator(".history-options > summary").click();
+    await chart.getByRole("combobox", { name: german.scope, exact: true }).selectOption("own");
+    await chart.getByRole("combobox", { name: german.range, exact: true }).selectOption("custom");
+    await chart.getByRole("combobox", { name: german.interval, exact: true }).selectOption("week");
+    await chart.getByRole("combobox", { name: german.metric, exact: true }).selectOption("used");
+    await chart.getByRole("combobox", { name: german.feature, exact: true }).selectOption("crm");
+    await chart.getByText(german.table, { exact: true }).click();
+    await expect(chart.locator("tbody tr").last()).toContainText("0% (0/1)");
+    const from = await chart.getByLabel(german.from).inputValue();
+    const requests: string[] = [];
+    page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/")) requests.push(request.url()); });
+    await language.selectOption("en");
+    await expect(page.getByRole("heading", { name: "What’s being used" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Galleries and photos" })).toBeVisible();
+    await expect(chart.getByRole("heading", { name: "Usage over time", exact: true })).toBeVisible();
+    await expect(adoption.getByRole("searchbox")).toHaveValue("crm");
+    await expect(adoption.getByRole("button", { name: "No reported use", exact: false })).toHaveAttribute("aria-pressed", "true");
+    await expect(chart.getByRole("combobox", { name: "Reporters", exact: true })).toHaveValue("own");
+    await expect(chart.getByRole("combobox", { name: "Date range", exact: true })).toHaveValue("custom");
+    await expect(chart.getByRole("combobox", { name: "Group by", exact: true })).toHaveValue("week");
+    await expect(chart.getByRole("combobox", { name: "Metric", exact: true })).toHaveValue("used");
+    await expect(chart.getByRole("combobox", { name: "Capability", exact: true })).toHaveValue("crm");
+    await expect(chart.getByLabel("From (UTC)")).toHaveValue(from);
+    await expect(chart.locator("tbody tr").last()).toContainText("0% (0/1)");
+    await rendered(page);
+    expect(requests).toEqual([]);
+    await language.selectOption("de");
+    await chart.locator(".history-options > summary").click();
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({ path: testInfo.outputPath(`global-participant-de-${width}.png`), fullPage: true, animations: "disabled" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole("navigation", { name: german.mainNavigation }).getByRole("link", { name: "Deine Berichte" }).click();
+    await expect(page.getByRole("heading", { name: "1 Bericht angezeigt" })).toBeVisible();
+    await page.locator("details > summary").click();
+    const rawReport = await page.locator("pre").textContent();
+    await language.selectOption("en");
+    await expect(page.locator("pre")).toHaveText(rawReport!);
+    expect(await page.evaluate(() => ({ ...localStorage }))).toEqual({ [languagePreference]: "en" });
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(page.getByLabel("Installation lookup hash")).toBeVisible();
+    await expect(language).toHaveValue("en");
+  });
+
+  test(`global language at ${width}px: maintainer token, reporter and unsaved review survive`, async ({ page, collector }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(`${collector.url}/maintainer`);
+    const language = page.getByLabel("Language / Sprache", { exact: true });
+    await page.getByLabel("Maintainer access token").fill(SECRET);
+    await language.selectOption("de");
+    await expect(page.getByLabel(german.maintainerToken)).toHaveValue(SECRET);
+    const languageBox = await language.boundingBox(), formBox = await page.locator("main form").boundingBox();
+    expect(formBox!.y - languageBox!.y - languageBox!.height).toBeGreaterThanOrEqual(20);
+    await page.getByRole("button", { name: german.openWorkspace }).click();
+    await expect(page.locator(".reporter-directory tbody tr")).toHaveCount(1);
+    await page.getByRole("button", { name: german.inspect, exact: true }).click();
+    const details = page.locator(".reporter-details");
+    await expect(details).toContainText(collector.identity.installation_id);
+    await details.locator("summary").first().click();
+    await expect(details.locator("pre").first()).toBeVisible();
+    const raw = await details.locator("pre").first().textContent();
+    const moderation = page.locator(".moderation");
+    await moderation.getByRole("combobox", { name: "Status", exact: true }).selectOption("planned");
+    await moderation.getByLabel(german.publishItem).uncheck();
+    await expect(page.locator(".usage-history svg")).toBeVisible();
+    const requests: string[] = [];
+    page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/")) requests.push(request.url()); });
+    await language.selectOption("en");
+    await expect(language).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "All reported data" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Feedback inbox" })).toBeVisible();
+    await expect(moderation.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("planned");
+    await expect(moderation.getByLabel("Publish this item")).not.toBeChecked();
+    await expect(moderation.getByRole("heading")).toHaveText("Synthetic request");
+    await expect(moderation.locator(".preserve")).toHaveText(html);
+    await expect(details.locator("pre").first()).toHaveText(raw!);
+    await expect(page.locator(".usage-history .history-context")).toContainText("Selected reporter");
+    await expect(page.locator(".usage-history")).toHaveCount(1);
+    await rendered(page);
+    expect(requests).toEqual([]);
+    await language.selectOption("de");
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({ path: testInfo.outputPath(`global-maintainer-de-${width}.png`), animations: "disabled" });
+    expect(await page.evaluate(() => ({ ...localStorage }))).toEqual({ [languagePreference]: "de" });
+    expect(await page.evaluate(() => [sessionStorage.length, document.cookie])).toEqual([0, ""]);
+    await page.getByRole("button", { name: "Abmelden", exact: true }).click();
+    await expect(page.getByLabel(german.maintainerToken)).toHaveValue("");
+    await expect(language).toHaveCount(1);
+    await expect(language).toHaveValue("de");
+    await expect(page.locator(".maintainer-data")).toHaveCount(0);
+  });
+}
+
+for (const storage of ["invalid", "blocked"]) test(`global language: German browser fallback with ${storage} storage`, async ({ page, collector }) => {
+  await page.addInitScript(({ storage, key }) => {
+    Object.defineProperty(navigator, "language", { value: "de-DE" });
+    if (storage === "blocked") {
+      Object.defineProperty(window, "localStorage", { get: () => { throw new DOMException("Disabled", "SecurityError"); } });
+    } else localStorage.setItem(key, "unsupported");
+  }, { storage, key: languagePreference });
+  await page.goto(collector.url);
+  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+  await expect(page.getByRole("heading", { name: "Ein klareres Bild. Ein besseres PicPeak." })).toBeVisible();
+  await page.getByLabel("Language / Sprache").selectOption("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("heading", { name: "A clearer picture. A better PicPeak." })).toBeVisible();
+  await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Your packets" }).click();
+  await expect(page.getByRole("heading", { name: "Your data, exactly as received." })).toBeVisible();
+});
+
 async function unlock(page: Page, collector: any) {
   await page.goto(collector.url);
   await page
@@ -91,7 +263,7 @@ test('all v5 definitions are public in EN/DE and config-only use is never shown 
   await page.goto(`${collector.url}/transparency`);
   const catalog = page.locator('#feature-catalog');
   await expect(catalog.locator('details')).toHaveCount(87);
-  await catalog.getByLabel('Language / Sprache').selectOption('de');
+  await page.getByLabel('Language / Sprache').selectOption('de');
   await expect(catalog.getByRole('heading', { level: 2 })).toHaveText('Alle 87 Funktionssignale');
   await expect(catalog).toContainText('Aktuelle Anzahl der Fotoeinträge ohne Videos');
   await expect(catalog).toContainText('Betreuer können');
@@ -100,17 +272,18 @@ test('all v5 definitions are public in EN/DE and config-only use is never shown 
   await catalog.locator('summary').click();
   await expect(catalog.locator('details')).toContainText('Galerie-Downloads eingeschränkt');
   await expect(catalog.locator('details')).toContainText('Mindestens eine Galerie hat Downloads abgeschaltet');
-  await catalog.getByLabel('Language / Sprache').selectOption('en');
+  await page.getByLabel('Language / Sprache').selectOption('en');
   await expect(catalog.locator('details')).toHaveCount(0);
   await expect(catalog).toContainText('No matching capabilities.');
   await catalog.getByRole('searchbox').fill('restricted');
   await expect(catalog.locator('details')).toHaveCount(1);
   await expect(catalog.locator('details')).toContainText('Gallery downloads restricted');
-  await catalog.getByLabel('Language / Sprache').selectOption('de');
+  await page.getByLabel('Language / Sprache').selectOption('de');
   await catalog.getByRole('searchbox').fill('gallery_feedback_likes');
   await expect(catalog.locator('details')).toHaveCount(1);
   await catalog.locator('summary').click();
   await expect(catalog).toContainText('tatsächliche Nutzung wird nicht erfasst');
+  await page.getByLabel('Language / Sprache').selectOption('en');
   await unlock(page, collector);
   await page.getByPlaceholder('Search features…').fill('gallery_guest_uploads');
   await expect(page.locator('.adoption-feature')).toHaveCount(1);
@@ -154,7 +327,7 @@ test('partial legacy reports do not dilute percentages or turn missing totals in
   await ownHistory.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('photos');
   await ownHistory.getByText('Show values as a table', { exact: true }).click();
   await expect(ownHistory.locator('tbody tr').last()).toContainText('Not reported');
-  await ownHistory.getByLabel('Language / Sprache').selectOption('de');
+  await page.getByLabel('Language / Sprache').selectOption('de');
   await expect(ownHistory.locator('tbody tr').last()).toContainText('Nicht gemeldet');
 });
 
@@ -185,7 +358,7 @@ test('old allowed-downloads and v4 restrictions stay separately selectable with 
   await feature.selectOption('gallery_downloads_restricted');
   await expect(chart.locator('tbody tr').last()).toContainText('0% (0/1)');
   await expect(chart).toContainText('Older values are never inverted or converted');
-  await chart.getByLabel('Language / Sprache').selectOption('de');
+  await page.getByLabel('Language / Sprache').selectOption('de');
   await expect(chart).toContainText('Galerie-Downloads eingeschränkt');
   await expect(chart.getByRole('heading', { name: 'Verfügbarkeit / Konfiguration · Galerie-Downloads eingeschränkt', exact: true })).toBeVisible();
   const germanFeature = chart.getByRole('combobox', { name: 'Funktion', exact: true });
@@ -511,7 +684,7 @@ for (const width of [1280, 390]) test(`inventory at ${width}px: totals, unknown 
   await expect(chart.getByRole('row').last().getByRole('cell').nth(3)).toHaveText('0');
   await chart.getByRole('combobox', { name: 'Date range', exact: true }).selectOption('all');
   await expect(chart.getByRole('row').nth(1).getByRole('cell').nth(3)).toHaveText('Not reported');
-  await chart.getByLabel('Language / Sprache').selectOption('de');
+  await page.getByLabel('Language / Sprache').selectOption('de');
   await expect(chart.getByRole('columnheader', { name: 'Gespeicherte Fotoeinträge', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await chart.screenshot({ path: testInfo.outputPath(`inventory-${width}.png`) });
@@ -544,7 +717,7 @@ for (const width of [1280, 390]) {
     expect(value.from).toBe(date(60));
     expect(value.points.reduce((n: number, point: any) => n + point.reports, 0)).toBe(6);
     expect(JSON.stringify(value)).not.toContain(collector.identity.installation_id);
-    await chart.getByLabel("Language / Sprache").selectOption("de");
+    await page.getByLabel("Language / Sprache").selectOption("de");
     await expect(chart.getByRole("heading", { name: "Nutzung im Zeitverlauf" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await chart.screenshot({ path: testInfo.outputPath(`participant-history-${width}.png`) });
@@ -575,7 +748,7 @@ for (const width of [1280, 390]) {
     await expect(page.getByRole("heading", { name: "Alle gemeldeten Daten" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.locator(".maintainer-data").screenshot({ path: testInfo.outputPath(`maintainer-data-${width}.png`) });
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await page.getByRole("button", { name: "Abmelden", exact: true }).click();
     await expect(page.locator(".maintainer-data")).toHaveCount(0);
     await expect(page.locator("body")).not.toContainText(collector.identity.installation_id);
   });

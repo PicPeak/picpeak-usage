@@ -1,7 +1,7 @@
+import { useLocale } from "./Locale";
 import { useEffect, useId, useRef, useState } from "react";
 import { api, download, type Summary } from "./api";
 import { useRequestScope } from "./useRequestScope";
-import { LanguageSelect, messages, type Language } from "./historyLocale";
 import { featureText, historicalFeatures } from "./catalog";
 import type { FeatureSelection } from "./FeatureAdoption";
 
@@ -43,19 +43,15 @@ export function History({
   token,
   maintainer = false,
   reporter,
-  language: parentLanguage,
   selection,
 }: {
   token: string;
   maintainer?: boolean;
   reporter?: string;
-  language?: Language;
   selection?: FeatureSelection;
 }) {
   const signal = useRequestScope();
-  const [localLanguage, setLanguage] = useState<Language>("en");
-  const language = parentLanguage || localLanguage;
-  const t = messages[language];
+  const { language, t } = useLocale();
   const chartId = useId();
   const section = useRef<HTMLElement | null>(null);
   const svg = useRef<SVGSVGElement | null>(null);
@@ -218,9 +214,6 @@ export function History({
     <section ref={section} tabIndex={-1} className="panel section usage-history" aria-label={t.history}>
       <div className="section-heading">
         <h2>{t.history}</h2>
-        {!parentLanguage && (
-          <LanguageSelect language={language} setLanguage={setLanguage} />
-        )}
       </div>
       <p className="caption section">{t.historyIntro}</p>
       <p className="small history-context">{maintainer ? reporter ? t.selected : t.all : scope === "own" ? t.own : t.all} · {range === "all" ? data?.from || t.allTime : from} – {to} (UTC) · {t[interval as "day" | "week" | "month"]}</p>
