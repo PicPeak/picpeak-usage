@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, download, type Summary } from "./api";
 import { useRequestScope } from "./useRequestScope";
 import { LanguageSelect, messages, type Language } from "./historyLocale";
-import { historicalFeatures } from "./catalog";
+import { featureText, historicalFeatures } from "./catalog";
 
 type Point = Pick<
   Summary,
@@ -134,7 +134,7 @@ export function History({
   const counted = metric === "reports" || metric === "reporters" || inventoryMetric;
   const usesPercent = !counted && percent;
   const label = featureMetric
-    ? `${t[metric]} · ${historicalFeatures[feature as keyof typeof historicalFeatures].name[language]}`
+    ? `${t[metric]} · ${featureText(feature, language).name}`
     : distribution
       ? `${t[metric]} · ${chosen}`
       : t[metric];
@@ -314,9 +314,9 @@ export function History({
               value={feature}
               onChange={(e) => setFeature(e.target.value)}
             >
-              {Object.entries(historicalFeatures).map(([key, value]) => (
+              {Object.keys(historicalFeatures).map((key) => (
                 <option key={key} value={key}>
-                  {value.name[language]}
+                  {featureText(key, language).name}
                 </option>
               ))}
             </select>
