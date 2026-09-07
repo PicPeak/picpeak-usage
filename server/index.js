@@ -1,10 +1,15 @@
 "use strict";
 const { createDatabase, migrate } = require("./database");
 const { createApp } = require("./app");
+const { readWeeklyConfig } = require("./weeklyConfig");
+const { prepareWeeklyReporting } = require("./weeklyActivity");
+const { WeeklyReporter } = require("./weeklyReporter");
 
 async function start() {
+  const weeklyConfig = readWeeklyConfig();
   const db = createDatabase();
   await migrate(db);
+  await prepareWeeklyReporting(db, weeklyConfig);
   const app = createApp({ db });
   await app.locals.collector.pruneExpired();
   let maintaining = false;
@@ -32,16 +37,23 @@ async function start() {
   const server = app.listen(port, host, () =>
     process.stdout.write(`picpeak-usage listening on port ${port}\n`),
   );
+  const weeklyReporter = new WeeklyReporter({ db, config: weeklyConfig, onError: code =>
+    process.stderr.write(`picpeak-usage: weekly report ${code}; will retry\n`),
+  });
+  weeklyReporter.start();
+  let shutdown;
   const stop = () => {
+    if (shutdown) return;
     clearInterval(maintenance);
-    server.close(() => db.destroy().finally(() => process.exit(0)));
+    shutdown = weeklyReporter.stop();
+    server.close(() => shutdown.finally(() => db.destroy().finally(() => process.exit(0))));
   };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
 }
-start().catch(() => {
+start().catch((error) => {
   process.stderr.write(
-    "picpeak-usage startup failed; check database configuration\n",
+    error.code === "WEEKLY_CONFIG" ? `${error.message}\n` : "picpeak-usage startup failed; check database configuration\n",
   );
   process.exit(1);
 });

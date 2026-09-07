@@ -207,7 +207,7 @@
   "privateLookupDisclosure": "That is why the numbers are not published anonymously. Your lookup hash unlocks the dashboard, the dataset export and all of your unique accepted usage reports while you participate. Keep it private. The schema, the rules, feature requests and testimonials stay public.",
   "deletionTitle": "Leaving means deletion",
   "deletionIntro": "Disable participation in PicPeak to stop collection immediately. PicPeak signs a deletion request; the collector deletes reports, projections, feedback, publications, votes, and sessions. The local key and hash are removed after confirmation. Outages leave deletion visibly pending and retryable.",
-  "revocationDisclosure": "Only a one-way revocation digest remains to prevent old registrations from being replayed. It cannot retrieve a former installation’s data. A new opt-in generates a fresh identity. Short-lived global abuse counters contain no installation identity.",
+  "revocationDisclosure": "Only a one-way revocation digest remains to prevent old registrations from being replayed. It cannot retrieve a former installation’s data. A new opt-in generates a fresh identity. Short-lived global abuse counters contain no installation identity. Optional weekly reporting also retains identity-free join/opt-out totals for at most 90 days, as described below.",
   "feedbackConsentTitle": "Feedback has separate consent",
   "feedbackConsentIntro": "Feedback is sent only when you submit it. You choose anonymity or a name per item. Private feedback is maintainer-only; feature requests and testimonials need your publication permission and review. Homepage marketing requires an additional explicit permission. Opt-out removes these items and their votes too.",
   "signingTitle": "Signing and retention",
@@ -299,5 +299,13 @@
   "retentionReceiptsData": "Audit receipts",
   "retentionReceiptsDuration": "Held by the requester; no central personal audit history. PicPeak keeps only the local latest receipts described above.",
   "retentionInfrastructureData": "Infrastructure logs and backups",
-  "retentionInfrastructureDuration": "No app access logger or automatic backup. Operators must disclose any separate backup retention, apply revocations on restore, and avoid payloads/credentials in logs; essential security logs should be kept at most 24 hours."
+  "retentionInfrastructureDuration": "No app access logger or automatic backup. Operators must disclose any separate backup retention, apply revocations on restore, and avoid payloads/credentials in logs; essential security logs should be kept at most 24 hours.",
+  "linkedFeedbackNotice": "This link opens a specific message after maintainer sign-in.",
+  "linkedFeedbackMissing": "This message is no longer available. It may have been removed when its author opted out.",
+  "allFeedback": "Show all feedback",
+  "weeklyEmailTitle": "Optional weekly maintainer email",
+  "weeklyEmailDisclosure": "Operators can enable a weekly email for trusted maintainers containing aggregate usage insights and all new feedback, including private messages. Links require maintainer sign-in. Messages deleted before email preparation are excluded, but delivered email copies cannot be recalled. SMTP and mailbox retention are the operator’s responsibility.",
+  "weeklyCounterDisclosure": "While enabled, the collector keeps only daily totals of new registrations and completed opt-outs for at most 90 days, without installation IDs, hashes, addresses or message contents. These aggregate operational counts survive individual opt-outs. Pending email receipts reference live feedback and are removed on opt-out or completion of that recipient’s weekly report. Disabling weekly reports clears the counters and delivery state.",
+  "retentionWeeklyData": "Weekly email counts and delivery coordination",
+  "retentionWeeklyDuration": "Aggregate joins/opt-outs: 90 days, without identity. Minimal per-recipient scheduling/retry state while enabled; feedback part receipts only until report completion or author opt-out. No email bodies stored by the scheduler. Disabling removes all of this state. Delivered mailbox copies remain with the maintainer."
 }

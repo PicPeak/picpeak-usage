@@ -221,6 +221,49 @@ async function migrate(db) {
         .update({ hardening_version: 2 });
     });
   }
+  if (!(await db.schema.hasTable("weekly_report_meta")))
+    await db.schema.createTable("weekly_report_meta", (t) => {
+      t.integer("id").primary();
+      t.string("tracking_since", 24).nullable();
+      t.integer("schema_version").notNullable().defaultTo(0);
+    });
+  await db("weekly_report_meta").insert({ id: 1 }).onConflict("id").ignore();
+  if (!(await db.schema.hasTable("weekly_activity")))
+    await db.schema.createTable("weekly_activity", (t) => {
+      // Aggregate operational counts only; never an installation identifier.
+      t.string("day", 10).primary();
+      t.integer("joined").notNullable().defaultTo(0);
+      t.integer("removed").notNullable().defaultTo(0);
+    });
+  if (!(await db.schema.hasTable("weekly_recipients")))
+    await db.schema.createTable("weekly_recipients", (t) => {
+      t.string("id", 64).primary(); // SHA256 of a configured maintainer address
+      t.string("period_end", 24).notNullable();
+      t.integer("part").notNullable().defaultTo(1);
+      t.string("lease_id", 36).nullable();
+      t.bigInteger("lease_until").notNullable().defaultTo(0);
+      t.bigInteger("next_attempt_at").notNullable().defaultTo(0);
+      t.integer("failures").notNullable().defaultTo(0);
+      t.string("last_error", 32).nullable();
+      t.string("last_sent_at", 24).nullable();
+    });
+  if (!(await db.schema.hasTable("weekly_feedback_receipts")))
+    await db.schema.createTable("weekly_feedback_receipts", (t) => {
+      t.string("recipient_id", 64).notNullable()
+        .references("id").inTable("weekly_recipients").onDelete("CASCADE");
+      t.string("feedback_id", 36).notNullable()
+        .references("id").inTable("feedback").onDelete("CASCADE");
+      t.primary(["recipient_id", "feedback_id"]);
+      t.index("feedback_id");
+    });
+  const weeklyMeta = await db("weekly_report_meta").where({ id: 1 }).first();
+  if (weeklyMeta.schema_version < 1) {
+    await db.transaction(async tx => {
+      await tx.schema.alterTable("reports", t => t.index(["received_at", "installation_id", "report_date"], "reports_weekly_receipts"));
+      await tx.schema.alterTable("feedback", t => t.index(["created_at", "id"], "feedback_weekly_received"));
+      await tx("weekly_report_meta").where({ id: 1 }).update({ schema_version: 1 });
+    });
+  }
 }
 
 function readSnapshot(db, work) {

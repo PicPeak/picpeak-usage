@@ -117,6 +117,10 @@ receipt copies once. Participants reconnect from PicPeak; reports/feedback remai
 | Export/deletion audit receipts | Generated for the requester, no collector-side access/export history. Download and retain privately. PicPeak optionally retains only its latest local export receipt and identity-free deletion confirmation; opt-out clears the export receipt. |
 | Proxy/CDN/security logs | No payloads or credentials; access logging disabled; exceptional security logs recommended maximum 24 hours, operator responsibility |
 | Backups | None created by this service; if added, explicitly disclose a short retention and apply revocations on restore |
+| Optional `weekly_activity` day/joined/removed totals | At most 90 days plus cleanup, no identities; aggregate counts survive individual opt-outs and are removed when weekly reporting is disabled |
+| Optional `weekly_recipients` / `weekly_report_meta` | Minimal scheduling/retry/lease state and activation time while enabled; no SMTP credentials, installation identity or email body; disabling clears delivery state and activation time |
+| Optional `weekly_feedback_receipts` | References to live feedback already accepted in the current multipart report; removed on author opt-out, report completion or disabling reporting |
+| Maintainer email copies | Held by configured recipients and SMTP infrastructure; cannot be recalled by opt-out. Operator-controlled retention and access. No collector email-content archive. |
 
 Raw JSON exports include a dated `export.v1` receipt (receipt ID, snapshot
 revision, scope and report count). Dataset exports expose `X-Exported-At`,
@@ -130,6 +134,12 @@ Signed opt-out deletes active records and all derived contributions in one
 transaction. Only SHA256(installation_id) remains linked to that identity in a revocation table without
 identity, key, packet, timestamp, or lookup access. This persistent tombstone
 prevents replayed old registrations.
+
+Optional weekly reporting retains identity-free aggregate join/opt-out totals
+for 90 days, separately from usage history. Those counters cannot retrieve a
+former installation's data. Feedback delivery references cascade on opt-out.
+See [weekly report configuration and privacy](WEEKLY_REPORTS.md) before enabling
+SMTP delivery of private feedback to trusted maintainers.
 
 The collector makes no automatic backups. If you add backups, keep and apply
 the revocation ledger across restores, purging revoked installations before

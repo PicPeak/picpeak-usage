@@ -211,7 +211,7 @@ export function History({
   }, [data, configOnly]);
 
   return (
-    <section ref={section} tabIndex={-1} className="panel section usage-history" aria-label={t.history}>
+    <section id="history" ref={section} tabIndex={-1} className="panel section usage-history" aria-label={t.history}>
       <div className="section-heading">
         <h2>{t.history}</h2>
       </div>

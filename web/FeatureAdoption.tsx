@@ -1,4 +1,5 @@
 import { useLocale } from "./Locale";
+import { linkedFeature } from "./maintainerLinks";
 import { useState } from "react";
 import type { Summary } from "./api";
 import { catalog, featureText, configurationKind } from "./catalog";
@@ -15,7 +16,7 @@ export function FeatureAdoption({
   onExplore: (selection: FeatureSelection) => void;
 }) {
   const { language, t } = useLocale();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(linkedFeature);
   const [view, setView] = useState<View>("all");
   const [showAll, setShowAll] = useState(false);
   const allEntries = Object.entries(data.features).map(([key, value]) => ({

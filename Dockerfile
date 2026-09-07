@@ -16,6 +16,7 @@ COPY --from=build --chown=1000:1000 /app/package.json /app/package-lock.json ./
 COPY --from=build --chown=1000:1000 /app/node_modules ./node_modules
 COPY --from=build --chown=1000:1000 /app/server ./server
 COPY --from=build --chown=1000:1000 /app/protocol ./protocol
+COPY --from=build --chown=1000:1000 /app/web/locales/catalog.de.json ./web/locales/catalog.de.json
 COPY --from=build --chown=1000:1000 /app/dist ./dist
 COPY --from=build --chown=1000:1000 /app/storage ./storage
 # Keep the old non-root UID so existing usage-data volumes remain writable.

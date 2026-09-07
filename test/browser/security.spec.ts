@@ -77,6 +77,76 @@ const test = base.extend<{ collector: any }>({
 const languagePreference = "picpeak-usage-language";
 const german = require("../../web/locales/de.json");
 
+for (const width of [1280, 390]) test(`weekly email links at ${width}px: private messages beyond page one open after login, deleted messages recover to inbox`, async ({ page, collector }) => {
+  const rows = Array.from({ length: 205 }, (_, index) => ({
+    id: crypto.randomUUID(), installation_id: collector.identity.installation_id,
+    kind: "feedback", title: `Private weekly message ${index}`, body: `Private complete message ${index}`, name: "",
+    allow_public: 0, allow_marketing: 0, published: 0, status: "open", created_at: new Date().toISOString(),
+  }));
+  for (let offset = 0; offset < rows.length; offset += 40) await collector.db("feedback").insert(rows.slice(offset, offset + 40));
+  const target = rows.sort((a, b) => a.id.localeCompare(b.id)).at(-1)!;
+  await page.setViewportSize({ width, height: 1000 });
+  await page.goto(`${collector.url}/maintainer?feedback=${target.id}#feedback-${target.id}`);
+  await expect(page.getByText(target.body, { exact: true })).toHaveCount(0);
+  await page.getByLabel("Maintainer access token").fill(SECRET);
+  await page.getByRole("button", { name: "Open maintainer workspace" }).click();
+  const message = page.locator(`#feedback-${target.id}`);
+  await expect(message.getByRole("heading")).toHaveText(target.title);
+  await expect(message).toBeFocused();
+  await expect(message).toContainText(target.body);
+  await expect(page.locator(".moderation")).toHaveCount(1);
+  await page.getByLabel("Language / Sprache").selectOption("de");
+  await expect(message).toContainText(target.body);
+  await page.getByRole("button", { name: "Alle Rückmeldungen anzeigen" }).click();
+  await expect(page.locator(".moderation")).toHaveCount(200);
+  await expect(page).toHaveURL(`${collector.url}/maintainer#feedback`);
+  await collector.db("feedback").where({ id: target.id }).delete();
+  await page.goto(`${collector.url}/maintainer?feedback=${target.id}#feedback-${target.id}`);
+  await page.getByLabel(german.maintainerToken).fill(SECRET);
+  await page.getByRole("button", { name: german.openWorkspace }).click();
+  await expect(page.getByText(german.linkedFeedbackMissing)).toBeVisible();
+  await expect(page.locator(".moderation")).toHaveCount(0);
+  await page.getByRole("button", { name: "Alle Rückmeldungen anzeigen" }).click();
+  await expect(page.locator(".moderation")).toHaveCount(200);
+  await page.goto(`${collector.url}/maintainer?feature=cms_content_editing#history`);
+  await page.getByLabel(german.maintainerToken).fill(SECRET);
+  await page.getByRole("button", { name: german.openWorkspace }).click();
+  await expect(page.locator("#adoption").getByRole("searchbox")).toHaveValue("cms_content_editing");
+  await expect(page.locator("#history .history-options")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#history h3")).toContainText("CMS");
+  await expect(page.locator("#history")).toBeFocused();
+});
+
+for (const [width, language] of [[1280, "en"], [390, "de"]] as const) test(`weekly email preview at ${width}px in ${language}: portal style, safe content and functional private link`, async ({ page, collector }, testInfo) => {
+  const { weeklyData } = require("../../server/weeklyData");
+  const { renderWeeklyEmail } = require("../../server/weeklyEmail");
+  const { weekStart, WEEK } = require("../../server/weeklyConfig");
+  const data = await weeklyData(collector.db, new Date(weekStart(Date.now()) + WEEK).toISOString(), "preview");
+  data.joined = 12; data.removed = 2; data.registered = 104; data.partialActivity = false;
+  data.current.reports = 650; data.previous.reports = 581;
+  data.current.reporters = 104; data.previous.reporters = 94;
+  data.current.inventory = { galleries: { total: 420, reported: 104 }, photos: { total: 12800, reported: 104 } };
+  data.top = [{ key: "cms_content_editing", used: 72, used_reported: 100, share: 72 }];
+  data.changes = [{ key: "cms_content_editing", used: 72, used_reported: 100, share: 72, previousShare: 61, delta: 11 }];
+  data.newCoverage = ["email_template_delivery"]; data.newVersions = ["3.46.10"];
+  data.feedback = [{ ...data.feedback[0], title: "A simpler client handover", body: "Could PicPeak include a checklist when I hand over a gallery?\nIt would help my clients find their download options.", kind: "feature_request" }];
+  const target = data.feedback[0];
+  const email = renderWeeklyEmail(data, { language, baseUrl: collector.url });
+  await page.setViewportSize({ width, height: 1000 });
+  const remote: string[] = [];
+  page.on("request", request => { if (request.url().startsWith("http") && !request.url().startsWith(collector.url)) remote.push(request.url()); });
+  await page.setContent(email.html);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(language === "en" ? "This week in PicPeak." : "Diese Woche in PicPeak.");
+  await expect(page.getByRole("heading", { name: target.title })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(remote).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath(`weekly-email-${language}-${width}.png`), fullPage: true, animations: "disabled" });
+  await page.getByRole("link", { name: language === "en" ? "Open this message" : "Diese Nachricht öffnen", exact: true }).click();
+  await expect(page).toHaveURL(`${collector.url}/maintainer?feedback=${target.id}#feedback-${target.id}`);
+  await expect(page.getByLabel("Maintainer access token")).toBeVisible();
+  await expect(page.locator(".moderation")).toHaveCount(0);
+});
+
 async function rendered(page: Page) {
   await page.evaluate(() => new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
