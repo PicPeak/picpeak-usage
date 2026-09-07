@@ -3,6 +3,7 @@ import { api, download, type Summary } from "./api";
 import { useRequestScope } from "./useRequestScope";
 import { LanguageSelect, messages, type Language } from "./historyLocale";
 import { featureText, historicalFeatures } from "./catalog";
+import type { FeatureSelection } from "./FeatureAdoption";
 
 type Point = Pick<
   Summary,
@@ -43,17 +44,20 @@ export function History({
   maintainer = false,
   reporter,
   language: parentLanguage,
+  selection,
 }: {
   token: string;
   maintainer?: boolean;
   reporter?: string;
   language?: Language;
+  selection?: FeatureSelection;
 }) {
   const signal = useRequestScope();
   const [localLanguage, setLanguage] = useState<Language>("en");
   const language = parentLanguage || localLanguage;
   const t = messages[language];
   const chartId = useId();
+  const section = useRef<HTMLElement | null>(null);
   const svg = useRef<SVGSVGElement | null>(null);
   const [chartWidth, setChartWidth] = useState(1000);
   const [showTable, setShowTable] = useState(false);
@@ -69,6 +73,15 @@ export function History({
   const [data, setData] = useState<HistoryData | null>(null);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
+  useEffect(() => {
+    if (!selection) return;
+    setFeature(selection.feature);
+    setMetric(featureText(selection.feature, "en").used ? "used" : "configured");
+    setScope("all");
+    setPercent(true);
+    section.current?.scrollIntoView({ block: "start" });
+    section.current?.focus({ preventScroll: true });
+  }, [selection]);
   useEffect(() => {
     const request = new AbortController();
     const cancel = () => request.abort();
@@ -202,7 +215,7 @@ export function History({
   }, [data, configOnly]);
 
   return (
-    <section className="panel section usage-history" aria-label={t.history}>
+    <section ref={section} tabIndex={-1} className="panel section usage-history" aria-label={t.history}>
       <div className="section-heading">
         <h2>{t.history}</h2>
         {!parentLanguage && (
@@ -210,6 +223,9 @@ export function History({
         )}
       </div>
       <p className="caption section">{t.historyIntro}</p>
+      <p className="small history-context">{maintainer ? reporter ? t.selected : t.all : scope === "own" ? t.own : t.all} · {range === "all" ? data?.from || t.allTime : from} – {to} (UTC) · {t[interval as "day" | "week" | "month"]}</p>
+      <details className="history-options">
+        <summary>{t.historyFilters}</summary>
       <div className="history-controls">
         {!maintainer && (
           <label>
@@ -348,6 +364,7 @@ export function History({
           </label>
         )}
       </div>
+      </details>
       {featureMetric && <p className="caption">{t.semantics}</p>}
       {featureMetric && ["gallery_downloads", "gallery_downloads_restricted"].includes(feature) && <p className="caption">{t.downloadSignals}</p>}
       {distribution && <p className="caption">{t.distributionSemantics}</p>}

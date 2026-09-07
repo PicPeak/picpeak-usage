@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRequestScope } from "./useRequestScope";
 import { FeatureCatalog } from "./FeatureCatalog";
+import { FeatureAdoption, type FeatureSelection } from "./FeatureAdoption";
 import { History } from "./History";
 import { InventorySummary } from "./InventorySummary";
 import { MaintainerData } from "./MaintainerData";
@@ -9,7 +10,6 @@ import { createRoot } from "react-dom/client";
 import {
   api,
   downloadWith,
-  featureNames,
   day,
   stamp,
   type Summary,
@@ -147,8 +147,7 @@ function Overview({
   const signal = useRequestScope();
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState(false);
-  const [search, setSearch] = useState("");
-  const [metric, setMetric] = useState<"configured" | "used">("used");
+  const [selection, setSelection] = useState<FeatureSelection>();
   const [records, setRecords] = useState<unknown[] | null>(null);
   const load = () => {
     if (!credential) return;
@@ -248,11 +247,6 @@ function Overview({
         Loading the community picture…
       </p>
     );
-  const entries = Object.entries(data.features)
-    .filter(([key]) =>
-      `${key} ${featureNames[key] || ''}`.toLowerCase().includes(search.toLowerCase()),
-    )
-    .sort((a, b) => b[1][metric] - a[1][metric]);
   const reports = data.history.reduce((sum, row) => sum + row.reports, 0);
   return (
     <>
@@ -288,143 +282,80 @@ function Overview({
           included.
         </div>
       )}
+      <FeatureAdoption data={data} onExplore={setSelection} />
       <InventorySummary inventory={data.inventory} />
-      <History token={credential} />
-      <div className="dashboard-grid">
-        <section className="panel adoption" id="adoption">
-          <p className="eyebrow">Feature adoption</p>
-          <h2>What’s being used</h2>
-          <div className="controls">
-            <label className="search">
-              Find a capability
-              <input
-                type="search"
-                placeholder="Search features…"
-                autoComplete="off"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </label>
-            <label className="metric">
-              Show
-              <select
-                value={metric}
-                onChange={(e) => setMetric(e.target.value as typeof metric)}
-              >
-                <option value="used">Used since schema consent</option>
-                <option value="configured">Currently configured</option>
-              </select>
-            </label>
+      <History token={credential} selection={selection} />
+      <aside className="overview-extras">
+        <section className="panel">
+          <p className="eyebrow">Releases</p>
+          <h2>PicPeak versions</h2>
+          <div className="pairs">
+            {Object.entries(data.versions).map(([version, count]) => (
+              <div className="pair" key={version}>
+                <code>{version}</code>
+                <strong>{count}</strong>
+              </div>
+            ))}
           </div>
-          <p className="caption">
-            Percentages use only installations reporting this field, including groups of one.
-            Older schemas are unknown for new fields, not unused. Configuration-only signals never observe actual use.
-          </p>
-          <div className="feature-list">
-            {entries.map(([key, value]) => {
-              const denominator = metric === "used" ? value.used_reported : value.reported;
-              const percent = denominator
-                ? Math.round((value[metric] / denominator) * 100)
-                : 0;
-              return (
-                <article className="feature-row" key={key}>
-                  <div>
-                    <span>{featureNames[key] || key}</span>
-                    <strong>
-                      {denominator ? `${percent}%` : "Not collected"}
-                      <small>({value[metric]} / {denominator} reported)</small>
-                    </strong>
-                  </div>
-                  {denominator > 0 && <div
-                    className="bar"
-                    role="meter"
-                    aria-label={featureNames[key] || key}
-                    aria-valuenow={percent}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                  >
-                    <span style={{ width: `${percent}%` }} />
-                  </div>}
-                </article>
-              );
-            })}
-            {entries.length === 0 && (
-              <p className="muted small">No matching capabilities.</p>
-            )}
-          </div>
+          {!Object.keys(data.versions).length && (
+            <p className="muted small">{data.installations ? messages.en.unknown : "Waiting for the first report."}</p>
+          )}
         </section>
-        <aside className="side-panels">
-          <section className="panel">
-            <p className="eyebrow">Releases</p>
-            <h2>PicPeak versions</h2>
-            <div className="pairs">
-              {Object.entries(data.versions).map(([version, count]) => (
-                <div className="pair" key={version}>
-                  <code>{version}</code>
-                  <strong>{count}</strong>
-                </div>
-              ))}
-            </div>
-            {!Object.keys(data.versions).length && (
-              <p className="muted small">{data.installations ? messages.en.unknown : "Waiting for the first report."}</p>
-            )}
-          </section>
-          <section className="panel">
-            <p className="eyebrow">Gallery design</p>
-            <h2>Layouts in use</h2>
-            <div className="pairs">
-              {Object.entries(data.layouts).map(([layout, count]) => (
-                <div className="pair" key={layout}>
-                  <span>{layout}</span>
-                  <strong>{count}</strong>
-                </div>
-              ))}
-            </div>
-            {!Object.keys(data.layouts).length && data.layouts_reported === 0 && data.installations > 0 && (
-              <p className="muted small">{messages.en.unknown}</p>
-            )}
-            <p className="caption">
-              An installation can use several layouts. Per-layout gallery counts are never
-              reported.
-            </p>
-          </section>
-          <section className="callout">
-            <p className="eyebrow">Participant dataset</p>
-            <h2>See the whole picture.</h2>
-            <p>
-              Every feature combination is included, including groups of one. No
-              installation hashes or signing keys are exposed. The full export
-              is a consistent snapshot at its start time.
-            </p>
-            <button
-              className="btn primary"
-              onClick={() =>
-                downloadWith(
-                  "/api/participant/export",
-                  credential,
-                  "picpeak-usage-dataset.ndjson",
-                  signal,
-                ).catch(() => setError(true))
-              }
-            >
-              Download the dataset (NDJSON)
-            </button>
-            <button
-              className="btn quiet"
-              onClick={() =>
-                api<{ records: unknown[] }>("/api/participant/dataset", {
-                  token: credential,
-                  signal,
-                })
-                  .then((v) => setRecords(v.records))
-                  .catch(() => setError(true))
-              }
-            >
-              Inspect the first 200 records
-            </button>
-          </section>
-        </aside>
-      </div>
+        <section className="panel">
+          <p className="eyebrow">Gallery design</p>
+          <h2>Layouts in use</h2>
+          <div className="pairs">
+            {Object.entries(data.layouts).map(([layout, count]) => (
+              <div className="pair" key={layout}>
+                <span>{layout}</span>
+                <strong>{count}</strong>
+              </div>
+            ))}
+          </div>
+          {!Object.keys(data.layouts).length && data.layouts_reported === 0 && data.installations > 0 && (
+            <p className="muted small">{messages.en.unknown}</p>
+          )}
+          <p className="caption">
+            An installation can use several layouts. Per-layout gallery counts are never
+            reported.
+          </p>
+        </section>
+        <section className="callout">
+          <p className="eyebrow">Participant dataset</p>
+          <h2>See the whole picture.</h2>
+          <p>
+            Every feature combination is included, including groups of one. No
+            installation hashes or signing keys are exposed. The full export
+            is a consistent snapshot at its start time.
+          </p>
+          <button
+            className="btn primary"
+            onClick={() =>
+              downloadWith(
+                "/api/participant/export",
+                credential,
+                "picpeak-usage-dataset.ndjson",
+                signal,
+              ).catch(() => setError(true))
+            }
+          >
+            Download the dataset (NDJSON)
+          </button>
+          <button
+            className="btn quiet"
+            onClick={() =>
+              api<{ records: unknown[] }>("/api/participant/dataset", {
+                token: credential,
+                signal,
+              })
+                .then((v) => setRecords(v.records))
+                .catch(() => setError(true))
+            }
+          >
+            Inspect the first 200 records
+          </button>
+        </section>
+      </aside>
       {records && (
         <section className="panel section">
           <p className="eyebrow">Dataset records</p>
@@ -1033,7 +964,9 @@ function MaintainerSession({ signOut }: { signOut: () => void }) {
         title={t.workspaceTitle}
         text={t.workspaceIntro}
       />
-      <LanguageSelect language={language} setLanguage={setLanguage} />
+      <div className="maintainer-language">
+        <LanguageSelect language={language} setLanguage={setLanguage} />
+      </div>
       {!items && (
         <form
           className="panel lookup"

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { api, downloadWith, stamp } from "./api";
+import { api, downloadWith, stamp, type Summary } from "./api";
 import { History } from "./History";
+import { FeatureAdoption, type FeatureSelection } from "./FeatureAdoption";
+import { InventorySummary } from "./InventorySummary";
 import { messages, type Language } from "./historyLocale";
 import { useRequestScope } from "./useRequestScope";
 
@@ -32,6 +34,23 @@ export function MaintainerData({
   const [epoch, setEpoch] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [summaryError, setSummaryError] = useState(false);
+  const [selection, setSelection] = useState<FeatureSelection>();
+  useEffect(() => {
+    const request = new AbortController();
+    const cancel = () => request.abort();
+    signal.addEventListener("abort", cancel, { once: true });
+    setSummary(null);
+    setSummaryError(false);
+    api<Summary>("/api/maintainer/summary", { token, signal: request.signal })
+      .then(setSummary)
+      .catch(() => { if (!request.signal.aborted) setSummaryError(true); });
+    return () => {
+      request.abort();
+      signal.removeEventListener("abort", cancel);
+    };
+  }, [token, signal, epoch]);
   const load = async (after?: string) => {
     setBusy(true);
     setError(false);
@@ -58,7 +77,32 @@ export function MaintainerData({
   }, []);
   return (
     <div className="section maintainer-data">
-      <section className="panel">
+      {summaryError && <div className="notice error" role="alert">
+        {t.error}
+        <button className="btn" onClick={() => setEpoch(value => value + 1)}>{t.retry}</button>
+      </div>}
+      {!summary && !summaryError && <p role="status">{t.loading}</p>}
+      {summary && <>
+        <FeatureAdoption data={summary} language={language} onExplore={value => {
+          setSelected(null);
+          setSelection(value);
+        }} />
+        <InventorySummary inventory={summary.inventory} language={language} />
+      </>}
+      <History
+        key={`${selected?.id || "all"}:${epoch}`}
+        token={token}
+        maintainer
+        reporter={selected?.id}
+        language={language}
+        selection={selected ? undefined : selection}
+      />
+      {selected && (
+        <button className="btn section" onClick={() => setSelected(null)}>
+          {t.all}
+        </button>
+      )}
+      <section className="panel section">
         <div className="section-heading">
           <h2>{t.dataTitle}</h2>
           <button
@@ -87,18 +131,6 @@ export function MaintainerData({
         </div>
         <p className="caption section">{t.dataIntro}</p>
       </section>
-      <History
-        key={`${selected?.id || "all"}:${epoch}`}
-        token={token}
-        maintainer
-        reporter={selected?.id}
-        language={language}
-      />
-      {selected && (
-        <button className="btn section" onClick={() => setSelected(null)}>
-          {t.all}
-        </button>
-      )}
       <section
         className="panel section reporter-directory"
         aria-label={t.reporterList}

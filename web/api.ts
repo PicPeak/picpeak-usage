@@ -101,7 +101,3 @@ export function download(value: unknown, name: string) {
     name,
   );
 }
-export const featureNames: Record<string, string> = Object.fromEntries(
-  Object.entries(historicalFeatures).map(([key, value]) => [key, value.name.en]),
-);
-import { historicalFeatures } from "./catalog";

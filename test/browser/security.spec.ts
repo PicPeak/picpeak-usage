@@ -113,14 +113,12 @@ test('all v4 definitions are public in EN/DE and config-only use is never shown 
   await expect(catalog).toContainText('tatsächliche Nutzung wird nicht erfasst');
   await unlock(page, collector);
   await page.getByPlaceholder('Search features…').fill('gallery_guest_uploads');
-  await expect(page.locator('.feature-row')).toHaveCount(1);
-  await expect(page.locator('.feature-row')).toContainText('Not collected');
-  await expect(page.getByRole('meter')).toHaveCount(0);
-  await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('configured');
-  await expect(page.locator('.feature-row')).toContainText('0 / 1 reported');
+  await expect(page.locator('.adoption-feature')).toHaveCount(1);
+  await expect(page.locator('.adoption-feature')).toContainText('Actual use is not collected.');
+  await expect(page.locator('.adoption-feature')).toContainText('0 yes · 1 no · 0 unknown');
   await expect(page.getByRole('meter')).toHaveCount(1);
   await page.getByPlaceholder('Search features…').fill('OAuth');
-  await expect(page.getByRole('meter')).toHaveCount(1);
+  await expect(page.getByRole('meter')).toHaveCount(2);
 });
 test('partial legacy reports do not dilute percentages or turn missing totals into zero', async ({ page, collector }) => {
   const id = p.generateIdentity();
@@ -133,6 +131,7 @@ test('partial legacy reports do not dilute percentages or turn missing totals in
   }
   await unlock(page, collector);
   const history = page.locator('.usage-history');
+  await history.locator(".history-options > summary").click();
   await history.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('layouts');
   await history.getByRole('combobox', { name: 'Display', exact: true }).selectOption('percent');
   await history.getByText('Show values as a table', { exact: true }).click();
@@ -150,6 +149,7 @@ test('partial legacy reports do not dilute percentages or turn missing totals in
     await expect(panel).not.toContainText('Waiting for the first report.');
   }
   const ownHistory = page.locator('.usage-history');
+  await ownHistory.locator(".history-options > summary").click();
   await ownHistory.getByRole('combobox', { name: 'Reporters', exact: true }).selectOption('own');
   await ownHistory.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('photos');
   await ownHistory.getByText('Show values as a table', { exact: true }).click();
@@ -171,10 +171,10 @@ test('old allowed-downloads and v4 restrictions stay separately selectable with 
   await expect(catalog).toContainText('Gallery downloads restricted');
   await unlock(page, collector);
   await page.getByPlaceholder('Search features…').fill('gallery_downloads');
-  await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('configured');
-  await expect(page.locator('.feature-row')).toHaveCount(2);
-  await expect(page.locator('.feature-row').filter({ hasText: 'Gallery downloads restricted' })).toContainText('0 / 1 reported');
+  await expect(page.locator('.adoption-feature')).toHaveCount(2);
+  await expect(page.locator('.adoption-feature').filter({ hasText: 'Gallery downloads restricted' })).toContainText('0 yes · 1 no · 1 unknown');
   const chart = page.locator('.usage-history');
+  await chart.locator(".history-options > summary").click();
   await chart.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('configured');
   const feature = chart.getByRole('combobox', { name: 'Capability', exact: true });
   await expect(feature.locator('option')).toHaveCount(87);
@@ -389,6 +389,7 @@ test("session sign-in keeps reading after the original voting deadline and clear
   await expect(page.getByLabel("Installation lookup hash")).toHaveCount(0);
   await nav.getByRole("link", { name: "Overview", exact: true }).click();
   await expect(page.getByRole("heading", { name: "What’s being used" })).toBeVisible();
+  await page.locator(".history-options > summary").click();
   await page.locator(".usage-history").getByRole("combobox", { name: "Reporters", exact: true }).selectOption("own");
   collector.clock.offset += 5 * 60 * 1000 + 2000;
   await page.clock.fastForward(5 * 60 * 1000 + 2000);
@@ -500,6 +501,7 @@ for (const width of [1280, 390]) test(`inventory at ${width}px: totals, unknown 
   await collector.c.bumpRevision(collector.db);
   await unlock(page, collector);
   const chart = page.locator('.usage-history');
+  await chart.locator(".history-options > summary").click();
   await chart.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('photos');
   await chart.getByText('Show values as a table', { exact: true }).click();
   await expect(chart.getByRole('row').last().getByRole('cell').nth(3)).toHaveText('125');
@@ -521,6 +523,7 @@ for (const width of [1280, 390]) {
     const { date } = await seedHistory(collector);
     await unlock(page, collector);
     const chart = page.locator(".usage-history");
+    await chart.locator(".history-options > summary").click();
     await chart.getByRole("combobox", { name: "Metric", exact: true }).selectOption("used");
     await chart.getByRole("combobox", { name: "Capability", exact: true }).selectOption("crm");
     await chart.getByText("Show values as a table", { exact: true }).click();
@@ -592,4 +595,120 @@ test("a pending maintainer export is cancelled on sign-out", async ({ page, coll
   await held.release();
   expect(downloads).toHaveLength(0);
   await expect(page.locator(".maintainer-data")).toHaveCount(0);
+});
+
+async function seedAdoption(collector: any) {
+  const now = new Date();
+  for (const [index, version] of ['usage.v4', 'usage.v4', 'usage.v1'].entries()) {
+    const identity = p.generateIdentity();
+    const payload = {
+      report_date: now.toISOString().slice(0, 10), generated_at: now.toISOString(),
+      ...(version === 'usage.v4' ? {
+        picpeak_version: '1.2.3', gallery_layouts: ['grid'], inventory: { galleries: 12, photos: 450 },
+        features: { ...p.emptyFeatures(), crm: { configured: true, used: true }, video_uploads: { configured: true, used: true }, crm_quotes: { configured: true, used: index === 0 } },
+      } : { features: { crm: { used: true }, crm_quotes: { used: true } } }),
+    };
+    for (const [action, sequence, value] of [
+      ['register', 0, { consent_version: version === 'usage.v4' ? p.CURRENT_CONSENT_VERSION : 'usage-consent.v1' }],
+      ['report', 1, payload],
+    ] as const) await collector.c.receive(signedEnvelope(p.makePacket(identity, action, sequence, value, version), identity, now));
+  }
+}
+
+for (const width of [1280, 390]) test(`feature overview at ${width}px: ranks adoption, keeps unknown distinct and opens trends directly in EN/DE`, async ({ page, collector }, testInfo) => {
+  await seedAdoption(collector);
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto(`${collector.url}/maintainer`);
+  const language = page.getByLabel('Language / Sprache');
+  const languageBox = await language.boundingBox();
+  const formBox = await page.locator('form.lookup').boundingBox();
+  expect(formBox!.y - languageBox!.y - languageBox!.height).toBeGreaterThanOrEqual(20);
+  await page.screenshot({ path: testInfo.outputPath(`maintainer-login-${width}.png`), fullPage: true });
+  await page.getByLabel('Maintainer access token').fill(SECRET);
+  await page.getByRole('button', { name: 'Open maintainer workspace' }).click();
+  const overview = page.locator('.adoption-overview');
+  const features = overview.getByRole('article');
+  await expect(features).toHaveCount(8);
+  await expect(features.first()).toHaveAccessibleName('Client management');
+  const crm = features.first();
+  await expect(crm.getByRole('meter', { name: 'Used since consent', exact: true })).toHaveAttribute('aria-valuenow', '75');
+  await expect(crm).toContainText('2 yes · 1 no · 1 unknown');
+  await expect(crm).toContainText('3 yes · 1 no · 0 unknown');
+  await expect(page.locator('.history-options')).not.toHaveAttribute('open');
+  await expect(page.locator('.usage-history').getByRole('combobox', { name: 'Metric', exact: true })).not.toBeVisible();
+  await overview.screenshot({ path: testInfo.outputPath(`feature-overview-en-${width}.png`) });
+  await overview.getByRole('button', { name: 'Used by a majority', exact: false }).click();
+  // Quotes are used by exactly half of those answering, so not a majority.
+  await expect(features).toHaveCount(2);
+  await expect(features.nth(1)).toHaveAccessibleName('Admin video uploads');
+  await overview.getByRole('button', { name: 'No reported use', exact: false }).click();
+  await expect(features.filter({ hasText: 'Client management' })).toHaveCount(0);
+  await expect(features.filter({ hasText: 'Actual use is not collected.' })).toHaveCount(0);
+  await overview.getByRole('button', { name: 'Configuration only', exact: false }).click();
+  await expect(features).toHaveCount(24);
+  await expect(features.filter({ hasText: 'Actual use is not collected.' })).toHaveCount(24);
+  await overview.getByRole('button', { name: 'All features', exact: false }).click();
+  await overview.getByRole('button', { name: 'Show all 87 features', exact: true }).click();
+  await expect(features).toHaveCount(87);
+  await overview.getByRole('button', { name: 'Show the top 8', exact: true }).click();
+  await expect(features).toHaveCount(8);
+  await overview.getByRole('searchbox').fill('gallery_downloads');
+  await expect(features).toHaveCount(2);
+  const legacy = features.filter({ hasText: 'Older reports only' });
+  await expect(legacy).toContainText('Not reported');
+  await expect(legacy).toContainText('0 yes · 0 no · 4 unknown');
+  await expect(legacy.getByRole('meter')).toHaveCount(0);
+  await overview.getByRole('searchbox').fill('gallery_guest_uploads');
+  await expect(features).toHaveCount(1);
+  await expect(features).toContainText('Actual use is not collected.');
+  await expect(features.getByRole('meter')).toHaveCount(1);
+  await features.getByRole('button', { name: 'View trend', exact: false }).click();
+  await expect(page.locator('.usage-history').getByRole('heading', { level: 3 })).toHaveText('Configured capability · Guest uploads enabled');
+  await expect(page.locator('.usage-history')).toBeFocused();
+  await language.selectOption('de');
+  await overview.getByRole('searchbox').fill('CRM');
+  await overview.getByRole('button', { name: 'Von der Mehrheit genutzt', exact: false }).click();
+  await expect(features).toHaveCount(1);
+  await expect(features).toContainText('2 ja · 1 nein · 1 unbekannt');
+  await features.locator('summary').click();
+  await expect(features.getByText(/Der Funktionsschalter clients ist effektiv aktiviert/)).toBeVisible();
+  await features.getByRole('button', { name: 'Verlauf ansehen', exact: false }).click();
+  await expect(page.locator('.usage-history').getByRole('heading', { level: 3 })).toHaveText('Seit Einwilligung genutzte Funktion · Kundenverwaltung');
+  await expect(page.locator('.usage-history')).toContainText('Alle Installationen');
+  await overview.getByRole('searchbox').fill('');
+  await overview.getByRole('button', { name: 'Alle Funktionen', exact: false }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await overview.screenshot({ path: testInfo.outputPath(`feature-overview-de-${width}.png`) });
+});
+
+test('participant overview uses the same comparisons and returns an own-history drilldown to the community', async ({ page, collector }) => {
+  await seedAdoption(collector);
+  await unlock(page, collector);
+  const overview = page.locator('.adoption-overview');
+  const chart = page.locator('.usage-history');
+  await chart.locator('.history-options > summary').click();
+  await chart.getByRole('combobox', { name: 'Reporters', exact: true }).selectOption('own');
+  await overview.getByRole('searchbox').fill('crm');
+  await overview.getByRole('button', { name: 'View trend: Client management', exact: true }).click();
+  await expect(chart.getByRole('combobox', { name: 'Reporters', exact: true })).toHaveValue('all');
+  await expect(chart.getByRole('heading', { level: 3 })).toHaveText('Capability used since consent · Client management');
+  // Repeat the shortcut after manually changing a metric: it must still work.
+  await chart.getByRole('combobox', { name: 'Metric', exact: true }).selectOption('reporters');
+  await overview.getByRole('button', { name: 'View trend: Client management', exact: true }).click();
+  await expect(chart.getByRole('combobox', { name: 'Metric', exact: true })).toHaveValue('used');
+});
+
+test('maintainer overview handles an empty community and cancels a pending summary on sign-out', async ({ page, collector }) => {
+  await collector.send('delete', 0);
+  await page.goto(`${collector.url}/maintainer`);
+  await page.getByLabel('Maintainer access token').fill(SECRET);
+  await page.getByRole('button', { name: 'Open maintainer workspace' }).click();
+  await expect(page.locator('.adoption-overview')).toContainText('The overview will appear when an installation sends its first report.');
+  await expect(page.locator('.adoption-feature')).toHaveCount(0);
+  const held = await holdResponse(page, '**/api/maintainer/summary');
+  await page.getByRole('button', { name: 'Reload data', exact: true }).click();
+  await held.reached;
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await held.release();
+  await expect(page.locator('.adoption-overview')).toHaveCount(0);
 });
