@@ -30,6 +30,7 @@ const files = [
   "docs/DESIGN.md",
   "docs/FEATURE_COVERAGE.md",
   "docs/OPERATIONS.md",
+  "docs/WEEKLY_REPORTS.md",
   "docs/PROTOCOL.md",
   "docs/usage-coverage.v2.json",
   "docs/usage-coverage.v3.json",

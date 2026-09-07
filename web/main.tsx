@@ -1,4 +1,5 @@
 import { LocaleProvider, useLocale } from "./Locale";
+import { linkedFeedbackId } from "./maintainerLinks";
 import React, { useEffect, useRef, useState } from "react";
 import { useRequestScope } from "./useRequestScope";
 import { FeatureCatalog } from "./FeatureCatalog";
@@ -739,6 +740,11 @@ function Transparency() {
         </div>
       </div>
       <FeatureCatalog />
+      <section className="panel prose section">
+        <h2>{t.weeklyEmailTitle}</h2>
+        <p>{t.weeklyEmailDisclosure}</p>
+        <p>{t.weeklyCounterDisclosure}</p>
+      </section>
       <section className="prose-columns">
         <div className="prose">
           <h2>{t.feedbackConsentTitle}</h2>
@@ -793,6 +799,7 @@ function Transparency() {
                 t.retentionInfrastructureData,
                 t.retentionInfrastructureDuration,
               ],
+              [t.retentionWeeklyData, t.retentionWeeklyDuration],
             ].map(([data, retention]) => (
               <tr key={data}>
                 <th scope="row">{data}</th>
@@ -825,18 +832,40 @@ function MaintainerSession({ signOut }: { signOut: () => void }) {
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [next, setNext] = useState<string | null>(null);
-  const load = async (after = "") => {
+  const [linkedFeedback, setLinkedFeedback] = useState(linkedFeedbackId);
+  const [missingFeedback, setMissingFeedback] = useState(false);
+  const hasAccess = items !== null;
+  useEffect(() => {
+    if (!hasAccess) return;
+    const id = linkedFeedback ? `feedback-${linkedFeedback}` : location.hash.slice(1);
+    if (!["adoption", "history", "feedback", `feedback-${linkedFeedback}`].includes(id)) return;
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(id) || (linkedFeedback ? document.getElementById("feedback") : null);
+      target?.scrollIntoView({ block: "start" });
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hasAccess, linkedFeedback]);
+  const load = async (after = "", target = linkedFeedback) => {
     setError(false);
+    setMissingFeedback(false);
     setBusy(true);
     try {
-      const value = await api<Feedback[]>(
+      const value = target ? [await api<Feedback>(`/api/maintainer/feedback/${target}`, { token, signal })] : await api<Feedback[]>(
         `/api/maintainer/feedback${after ? `?after=${after}` : ""}`,
         { token, signal, onPage: setNext },
       );
+      if (target) setNext(null);
       setItems((previous) => (after ? [...(previous || []), ...value] : value));
-    } catch {
-      setError(true);
-      setItems(null);
+    } catch (error) {
+      if (error instanceof Error && error.message === "FEEDBACK_NOT_FOUND") {
+        setMissingFeedback(true);
+        setItems([]);
+        setNext(null);
+      } else {
+        setError(true);
+        setItems(null);
+      }
     } finally {
       setBusy(false);
     }
@@ -889,8 +918,20 @@ function MaintainerSession({ signOut }: { signOut: () => void }) {
       )}
       {error && <Failure />}
       {items && <MaintainerData key={token} token={token} />}
-      {items && <h2 className="section">{t.feedback}</h2>}
-      {items?.length === 0 && (
+      {items && <h2 id="feedback" tabIndex={-1} className="section">{t.feedback}</h2>}
+      {linkedFeedback && <div className="notice section">
+        <p>{missingFeedback ? t.linkedFeedbackMissing : t.linkedFeedbackNotice}</p>
+        <button className="btn" disabled={busy} onClick={() => {
+          setLinkedFeedback("");
+          setMissingFeedback(false);
+          const url = new URL(location.href);
+          url.searchParams.delete("feedback");
+          url.hash = "feedback";
+          history.replaceState(null, "", url.pathname + url.search + url.hash);
+          if (hasAccess) void load("", "");
+        }}>{t.allFeedback}</button>
+      </div>}
+      {items?.length === 0 && !missingFeedback && (
         <div className="panel empty section">
           <h2>{t.inboxEmptyTitle}</h2>
           <p>{t.inboxEmptyIntro}</p>
@@ -898,7 +939,7 @@ function MaintainerSession({ signOut }: { signOut: () => void }) {
       )}
       <div className="stack section">
         {items?.map((item) => (
-          <article key={item.id} className="panel moderation">
+          <article id={`feedback-${item.id}`} tabIndex={-1} key={item.id} className="panel moderation">
             <span className="badge">{kindLabel(item.kind, t)}</span>
             <h2>{item.title}</h2>
             <p className="preserve">{item.body}</p>

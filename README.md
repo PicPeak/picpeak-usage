@@ -67,6 +67,11 @@ feedback stay unchanged. No credentials are saved with the language preference.
 
 ## Deploy and audit
 
+Optional weekly maintainer emails include participation changes, usage insights
+and every new request/private message, with links back to the protected portal.
+Configure SMTP, recipients, language and schedule in `.env`; reporting is disabled
+by default. See [weekly email setup, previews and delivery behavior](docs/WEEKLY_REPORTS.md).
+
 Set MAINTAINER_TOKEN in your environment or Compose .env, then:
 
 ```sh

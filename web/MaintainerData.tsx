@@ -1,4 +1,5 @@
 import { useLocale } from "./Locale";
+import { linkedFeature } from "./maintainerLinks";
 import { useEffect, useState } from "react";
 import { api, downloadWith, stamp, type Summary } from "./api";
 import { History } from "./History";
@@ -35,7 +36,10 @@ export function MaintainerData({
   const [error, setError] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [summaryError, setSummaryError] = useState(false);
-  const [selection, setSelection] = useState<FeatureSelection>();
+  const [selection, setSelection] = useState<FeatureSelection | undefined>(() => {
+    const feature = linkedFeature();
+    return feature ? { feature } : undefined;
+  });
   useEffect(() => {
     const request = new AbortController();
     const cancel = () => request.abort();

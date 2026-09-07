@@ -14,6 +14,7 @@ const {
 const SESSION_MS = 15 * 60 * 1000;
 const { readSnapshot } = require("./database");
 const { emptyInventory, addInventory } = require("./inventory");
+const { recordParticipation, pruneWeeklyActivity } = require("./weeklyActivity");
 const PAGE_SIZE = 200;
 
 class Collector {
@@ -98,7 +99,8 @@ class Collector {
             ]) {
               await tx(table).where({ installation_id: id }).delete();
             }
-            await tx("installations").where({ id }).delete();
+            const removed = await tx("installations").where({ id }).delete();
+            const counted = removed === 1 && await recordParticipation(tx, "removed", now);
             if (contributed) await this.bumpRevision(tx);
             return {
               ...receipt,
@@ -118,7 +120,8 @@ class Collector {
                   "registration",
                 ],
                 retained:
-                  "one-way revocation digest; identity-free daily abuse counters",
+                  "one-way revocation digest; identity-free daily abuse counters" +
+                  (counted ? "; aggregate weekly-report participation counts (90 days)" : ""),
               },
             };
           }
@@ -173,7 +176,9 @@ class Collector {
               public_key: envelope.public_key,
               sequence: 0,
               consent_version: packet.payload.consent_version,
+              created_at: new Date(now).toISOString(),
             });
+            await recordParticipation(tx, "joined", now);
             await this.bumpRevision(tx);
           } else {
             const updated = await tx("installations")
@@ -338,6 +343,7 @@ class Collector {
   }
 
   async pruneExpired(db = this.db, now = this.now()) {
+    await pruneWeeklyActivity(db, now);
     await db("nonces").where("expires_at", "<=", now).delete();
     await db("sessions").where("expires_at", "<=", now).delete();
     await db("abuse_budgets")

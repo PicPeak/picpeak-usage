@@ -387,6 +387,15 @@ function createApp({
       res.json(await collector.moderate(req.params.id, req.body)),
     ),
   );
+  app.get("/api/maintainer/feedback/:id", maintainer, wrap(async (req, res) => {
+    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(req.params.id))
+      throw new ProtocolError("INVALID_FEEDBACK_ID");
+    const row = await db("feedback").where({ id: req.params.id }).first(
+      "id", "kind", "title", "body", "name", "status", "created_at", "allow_public", "allow_marketing", "published",
+    );
+    if (!row) throw new ProtocolError("FEEDBACK_NOT_FOUND", 404);
+    res.json({ ...row, allow_public: Boolean(row.allow_public), allow_marketing: Boolean(row.allow_marketing), published: Boolean(row.published) });
+  }));
   app.use("/api", (_req, res) => res.status(404).json({ error: "NOT_FOUND" }));
   app.use(
     express.static(path.join(__dirname, "../dist"), {

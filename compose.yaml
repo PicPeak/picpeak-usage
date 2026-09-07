@@ -20,6 +20,24 @@ services:
       # The container is meant to run behind exactly one TLS-terminating reverse
       # proxy on this host, so one X-Forwarded-For hop is trusted by default.
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      WEEKLY_REPORT_ENABLED: ${WEEKLY_REPORT_ENABLED:-false}
+      WEEKLY_REPORT_TO: ${WEEKLY_REPORT_TO:-}
+      WEEKLY_REPORT_BASE_URL: ${WEEKLY_REPORT_BASE_URL:-https://usage.picpeak.app}
+      WEEKLY_REPORT_LANGUAGE: ${WEEKLY_REPORT_LANGUAGE:-en}
+      WEEKLY_REPORT_DAY: ${WEEKLY_REPORT_DAY:-monday}
+      WEEKLY_REPORT_TIME: ${WEEKLY_REPORT_TIME:-08:00}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH_METHOD: ${SMTP_AUTH_METHOD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-PicPeak Usage}
+      SMTP_REPLY_TO: ${SMTP_REPLY_TO:-}
+      SMTP_CA_FILE: ${SMTP_CA_FILE:-}
+      SMTP_TLS_SERVERNAME: ${SMTP_TLS_SERVERNAME:-}
+      SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-30000}
     volumes:
       - usage-data:/app/storage
 volumes:
