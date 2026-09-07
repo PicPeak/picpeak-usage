@@ -72,6 +72,38 @@ for (const engine of [
   "sqlite",
   ...(process.env.TEST_DATABASE_URL ? ["pg"] : []),
 ]) {
+  test(`${engine}: portal session exposes its original expiry and a read-only hash that survives it`, async (t) => {
+    const { app, clock, register, send, report } = await fixture(t, engine);
+    const identity = await register();
+    await send(identity, "report", 1, report());
+    const receipt = await send(identity, "session", 2);
+    clock.now += 10 * 60 * 1000;
+    const response = await request(app)
+      .get("/api/participant/session")
+      .set("Authorization", `Bearer ${receipt.session_token}`)
+      .expect(200);
+    assert.equal(response.body.installation_id, identity.installation_id);
+    assert.equal(response.body.expires_at, receipt.expires_at);
+    assert.equal(response.body.session_token, undefined);
+    assert.equal(response.body.token_hash, undefined);
+    clock.now = Date.parse(receipt.expires_at);
+    for (const route of ["session", "summary"]) {
+      await request(app).get(`/api/participant/${route}`)
+        .set("Authorization", `Bearer ${receipt.session_token}`).expect(401);
+    }
+    await request(app).get("/api/participant/summary")
+      .set("Authorization", `Bearer ${identity.installation_id}`).expect(200);
+    const packets = await request(app).post("/api/participant/packets")
+      .send({ installation_id: identity.installation_id }).expect(200);
+    assert.equal(packets.body.packets.length, 1);
+    await request(app).put(`/api/participant/votes/${crypto.randomUUID()}`)
+      .set("Authorization", `Bearer ${identity.installation_id}`)
+      .send({ voted: true }).expect(401);
+    await send(identity, "delete", 3);
+    await request(app).get("/api/participant/summary")
+      .set("Authorization", `Bearer ${identity.installation_id}`).expect(401);
+  });
+
   test(`${engine}: S02 global registrations survive opt-out; unknown deletion growth is bounded`, async (t) => {
     const { db, c, clock, register, send } = await fixture(t, engine, {
       dailyRegistrations: 2,

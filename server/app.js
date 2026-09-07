@@ -266,12 +266,14 @@ function createApp({
   app.get(
     "/api/participant/session",
     wrap(async (req, res) => {
-      const id = await collector.participant(bearer(req));
+      const session = await collector.participantSession(bearer(req));
+      const id = session.installation_id;
       const requests = await collector.publicFeedback("feature_request", id, {
         after: feedbackCursor(req),
       });
       res.json({
         installation_id: id,
+        expires_at: new Date(Number(session.expires_at)).toISOString(),
         requests,
         next: requests.length === 200 ? requests.at(-1).id : null,
       });

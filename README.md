@@ -24,6 +24,11 @@ Use the PicPeak implementation of #1110 and run its normal migrations. For local
 
 Open PicPeak → Settings → Product usage & feedback, read the disclosure, and explicitly enable participation. The backend registers an Ed25519 identity and sends daily reports on admin app use. Use the same page to preview/export packets, submit feedback, open a 15-minute voting session, or disable participation and delete data.
 
+While participating, “Open usage portal” signs you in for reading and voting.
+Voting expires after 15 minutes; reading remains available until you sign out or
+reload the page. Both credentials stay only in page memory, and opting out in
+PicPeak revokes access.
+
 The hash permits read access only: the installation's raw packets, its own history and the participant-wide aggregate dataset and history. It cannot vote, send reports, moderate feedback, or delete data. Maintainers open /maintainer with the deployment's separate token, held only in page memory. Maintainer access does not require a participating installation.
 
 The maintainer workspace provides all retained contribution data: a paginated

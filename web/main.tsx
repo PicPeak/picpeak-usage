@@ -14,6 +14,7 @@ import {
   stamp,
   type Summary,
   type Feedback,
+  type ParticipantSession,
 } from "./api";
 import "./style.css";
 
@@ -652,8 +653,8 @@ function Requests({ token, expire }: { token: string; expire: () => void }) {
           </>
         ) : (
           <>
-            <strong>Voting needs a connected session.</strong> Choose “Connect
-            to requests &amp; voting” in your PicPeak usage settings. A lookup
+            <strong>Voting needs a connected session.</strong> Choose “Open usage
+            portal” in your PicPeak usage settings. A lookup
             hash alone does not authorize votes.
           </>
         )}{" "}
@@ -691,8 +692,11 @@ function Requests({ token, expire }: { token: string; expire: () => void }) {
                     signal,
                   });
                   load();
-                } catch {
-                  setError(true);
+                } catch (error) {
+                  if (!signal.aborted) {
+                    if (error instanceof Error && error.message === "PARTICIPANT_AUTH_REQUIRED") expire();
+                    else setError(true);
+                  }
                 } finally {
                   setBusy("");
                 }
@@ -1194,42 +1198,69 @@ function Brand() {
 
 function App() {
   const [route, setRoute] = useState(location.pathname);
-  const [token, setToken] = useState("");
+  const [session, setSession] = useState<{ token: string; expiresAt: number } | null>(null);
   const [hash, setHash] = useState("");
   const [sessionError, setSessionError] = useState(false);
   const connecting = useRef<AbortController | null>(null);
   setRouteGlobal = setRoute;
-  const credential = token || hash;
+  const token = session?.token || "";
+  const credential = hash;
   const signOut = () => {
     connecting.current?.abort();
-    setToken("");
+    setSession(null);
     setHash("");
+    setSessionError(false);
   };
   const unlock = (value: string) => {
     connecting.current?.abort();
-    setToken("");
+    setSession(null);
     setHash(value);
     setSessionError(false);
   };
   useEffect(() => {
+    if (!session) return;
+    const expire = () => {
+      if (Date.now() >= session.expiresAt) {
+        setSession(null);
+        setSessionError(true);
+      }
+    };
+    const timer = window.setTimeout(expire, Math.max(0, session.expiresAt - Date.now()));
+    // Background tabs may suspend timers; check again when the page resumes.
+    window.addEventListener("focus", expire);
+    document.addEventListener("visibilitychange", expire);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", expire);
+      document.removeEventListener("visibilitychange", expire);
+    };
+  }, [session]);
+  useEffect(() => {
+    const controller = new AbortController();
     const connect = new URLSearchParams(location.hash.slice(1)).get("connect");
     if (connect) {
-      connecting.current = new AbortController();
+      connecting.current = controller;
       history.replaceState(null, "", location.pathname);
-      api("/api/participant/session", {
+      api<ParticipantSession>("/api/participant/session", {
         token: connect,
-        signal: connecting.current.signal,
+        signal: controller.signal,
       })
-        .then(() => {
-          setToken(connect);
+        .then((value) => {
+          setHash(value.installation_id);
+          setSession({ token: connect, expiresAt: Date.parse(value.expires_at) });
           setRoute("/requests");
           history.replaceState(null, "", "/requests");
         })
-        .catch(() => setSessionError(true));
+        .catch(() => {
+          if (!controller.signal.aborted) setSessionError(true);
+        });
     }
     const pop = () => setRoute(location.pathname);
     window.addEventListener("popstate", pop);
-    return () => window.removeEventListener("popstate", pop);
+    return () => {
+      controller.abort();
+      window.removeEventListener("popstate", pop);
+    };
   }, []);
   return (
     <>
@@ -1272,10 +1303,7 @@ function App() {
             key={credential}
             credential={credential}
             unlock={unlock}
-            expire={() => {
-              signOut();
-              setSessionError(true);
-            }}
+            expire={signOut}
           />
         ) : route === "/packets" ? (
           <Packets key={hash} hash={hash} unlock={unlock} />
@@ -1284,7 +1312,7 @@ function App() {
             key={token}
             token={token}
             expire={() => {
-              setToken("");
+              setSession(null);
               setSessionError(true);
             }}
           />

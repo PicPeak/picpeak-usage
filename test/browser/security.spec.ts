@@ -12,8 +12,11 @@ const test = base.extend<{ collector: any }>({
   collector: async ({}, use) => {
     const db = createDatabase({ DATABASE_PATH: ":memory:" });
     await migrate(db);
+    const clock = { offset: 0 };
+    const now = () => Date.now() + clock.offset;
     const app = createApp({
       db,
+      now,
       maintainerToken: SECRET,
       disableRateLimit: true,
     });
@@ -24,6 +27,7 @@ const test = base.extend<{ collector: any }>({
         p.signPacket(
           p.makePacket(identity, action, sequence, payload),
           identity,
+          new Date(now()),
         ),
       );
     await send("register", 0, { consent_version: p.CURRENT_CONSENT_VERSION });
@@ -61,6 +65,7 @@ const test = base.extend<{ collector: any }>({
         c,
         identity,
         send,
+        clock,
       });
     } finally {
       await new Promise<void>((resolve) => server.close(resolve));
@@ -342,6 +347,93 @@ test("S04: bounded public lists remain fully navigable", async ({
   await expect(
     page.getByRole("button", { name: "Load more requests" }),
   ).toHaveCount(0);
+});
+
+test("session sign-in keeps reading after the original voting deadline and clears both credentials on sign-out", async ({ page, collector }) => {
+  const session = await collector.send("session", 3);
+  // Opening a ten-minute-old session must not grant another fifteen minutes.
+  collector.clock.offset += 10 * 60 * 1000;
+  await page.clock.install({ time: new Date(Date.now() + collector.clock.offset) });
+  const readingCredentials: string[] = [];
+  page.on("request", request => {
+    if (/\/api\/participant\/(summary|history)$/.test(new URL(request.url()).pathname)) {
+      readingCredentials.push(request.headers().authorization);
+    }
+  });
+  await page.goto(`${collector.url}/#connect=${session.session_token}`);
+  await expect(page.getByText("You are connected for voting.", { exact: true })).toBeVisible();
+  expect(new URL(page.url()).hash).toBe("");
+  const nav = page.getByRole("navigation", { name: "Main navigation" });
+  await nav.getByRole("link", { name: "Your packets", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "1 report shown" })).toBeVisible();
+  await expect(page.getByLabel("Installation lookup hash")).toHaveCount(0);
+  await nav.getByRole("link", { name: "Overview", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What’s being used" })).toBeVisible();
+  await page.locator(".usage-history").getByRole("combobox", { name: "Reporters", exact: true }).selectOption("own");
+  collector.clock.offset += 5 * 60 * 1000 + 2000;
+  await page.clock.fastForward(5 * 60 * 1000 + 2000);
+  await expect(nav.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+  await nav.getByRole("link", { name: "Feature requests", exact: true }).click();
+  await expect(page.getByText("Voting needs a connected session.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Vote for Synthetic request", exact: true })).toBeDisabled();
+  await nav.getByRole("link", { name: "Overview", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What’s being used" })).toBeVisible();
+  expect(readingCredentials.length).toBeGreaterThan(1);
+  expect(readingCredentials.every(value => value === `Bearer ${collector.identity.installation_id}`)).toBe(true);
+  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length, document.cookie])).toEqual([0, 0, ""]);
+  await nav.getByRole("link", { name: "Your packets", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "1 report shown" })).toBeVisible();
+  await nav.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page.getByLabel("Installation lookup hash")).toBeVisible();
+  await nav.getByRole("link", { name: "Feature requests", exact: true }).click();
+  await expect(page.getByText("Voting needs a connected session.", { exact: true })).toBeVisible();
+  const fresh = await collector.send("session", 4);
+  await page.goto(`${collector.url}/#connect=${fresh.session_token}`);
+  await expect(page.getByText("You are connected for voting.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(nav.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
+  await nav.getByRole("link", { name: "Your packets", exact: true }).click();
+  await expect(page.getByLabel("Installation lookup hash")).toBeVisible();
+});
+
+test("an expired vote removes voting access without discarding the reading hash", async ({ page, collector }) => {
+  const session = await collector.send("session", 3);
+  await page.goto(`${collector.url}/#connect=${session.session_token}`);
+  const vote = page.getByRole("button", { name: "Vote for Synthetic request", exact: true });
+  await expect(vote).toBeEnabled();
+  // The server expires first (clock skew or a suspended browser timer).
+  collector.clock.offset += 16 * 60 * 1000;
+  await vote.click();
+  await expect(page.getByText("Voting needs a connected session.", { exact: true })).toBeVisible();
+  await expect(vote).toBeDisabled();
+  await page.getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Overview", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What’s being used" })).toBeVisible();
+});
+
+test("an expired connect link never unlocks reading or voting", async ({ page, collector }) => {
+  const session = await collector.send("session", 3);
+  collector.clock.offset += 16 * 60 * 1000;
+  await page.goto(`${collector.url}/#connect=${session.session_token}`);
+  await expect(page.getByRole("alert")).toContainText("expired or is invalid");
+  expect(new URL(page.url()).hash).toBe("");
+  await expect(page.getByLabel("Installation lookup hash")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
+});
+
+test("a late connect response cannot restore either credential after manual sign-in and sign-out", async ({ page, collector }) => {
+  const session = await collector.send("session", 3);
+  const held = await holdResponse(page, "**/api/participant/session");
+  await page.goto(`${collector.url}/#connect=${session.session_token}`);
+  await held.reached;
+  await page.getByLabel("Installation lookup hash").fill(collector.identity.installation_id);
+  await page.getByRole("button", { name: "Open the dashboard", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What’s being used" })).toBeVisible();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await held.release();
+  await expect(page.getByLabel("Installation lookup hash")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
 async function seedHistory(collector: any) {
