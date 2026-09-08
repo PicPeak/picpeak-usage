@@ -663,6 +663,9 @@ test("session sign-in keeps reading after the original voting deadline and clear
 test("an expired vote removes voting access without discarding the reading hash", async ({ page, collector }) => {
   const session = await collector.send("session", 3);
   await page.goto(`${collector.url}/#connect=${session.session_token}`);
+  await expect(page.getByText("You are connected for voting.", { exact: true })).toBeVisible();
+  await page.getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Feature requests", exact: true }).click();
   const vote = page.getByRole("button", { name: "Vote for Synthetic request", exact: true });
   await expect(vote).toBeEnabled();
   // The server expires first (clock skew or a suspended browser timer).
