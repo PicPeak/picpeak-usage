@@ -7,6 +7,7 @@ const path = require("node:path");
 const { Collector } = require("./collector");
 const { createExportStreamer } = require("./exports");
 const { history } = require("./history");
+const { readAnalyticsConfig } = require("./analyticsConfig");
 const { reporters, pageOptions } = require("./maintainer");
 const {
   envelopeSchemas,
@@ -28,6 +29,7 @@ function createApp({
   now,
   disableRateLimit = false,
   exportOptions,
+  analyticsConfig = readAnalyticsConfig(),
   ...options
 }) {
   const app = express();
@@ -47,15 +49,15 @@ function createApp({
   app.use(
     helmet({
       referrerPolicy: { policy: "no-referrer" },
-      // The portal loads nothing from third parties: no https: wildcards.
+      // Only the explicitly configured analytics origin may load/send data.
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
+          scriptSrc: ["'self'", ...(analyticsConfig ? [new URL(analyticsConfig.scriptUrl).origin] : [])],
           styleSrc: ["'self'", "'unsafe-inline'"],
           fontSrc: ["'self'"],
           imgSrc: ["'self'", "data:"],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", ...(analyticsConfig ? [new URL(analyticsConfig.scriptUrl).origin] : [])],
           formAction: ["'self'"],
           frameAncestors: ["'none'"],
           objectSrc: ["'none'"],
@@ -76,6 +78,7 @@ function createApp({
     res.set("Cache-Control", "no-store");
     next();
   });
+  app.get("/api/public/analytics-config", (_req, res) => res.json(analyticsConfig));
   // No request/access logger. Rate limiting retains only an ephemeral HMAC of
   // the transport address, in memory for one window; it is never analytics.
   const limiterKey = crypto.randomBytes(32);

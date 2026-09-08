@@ -23,6 +23,7 @@ const files = [
   "public/fonts",
   "public/picpeak-mark.svg",
   "public/favicon.ico",
+  "public/analytics-privacy.js",
   "protocol",
   "server",
   "web",

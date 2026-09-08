@@ -1,16 +1,18 @@
 "use strict";
 const { createDatabase, migrate } = require("./database");
 const { createApp } = require("./app");
+const { readAnalyticsConfig } = require("./analyticsConfig");
 const { readWeeklyConfig } = require("./weeklyConfig");
 const { prepareWeeklyReporting } = require("./weeklyActivity");
 const { WeeklyReporter } = require("./weeklyReporter");
 
 async function start() {
   const weeklyConfig = readWeeklyConfig();
+  const analyticsConfig = readAnalyticsConfig();
   const db = createDatabase();
   await migrate(db);
   await prepareWeeklyReporting(db, weeklyConfig);
-  const app = createApp({ db });
+  const app = createApp({ db, analyticsConfig });
   await app.locals.collector.pruneExpired();
   let maintaining = false;
   const maintenance = setInterval(async () => {
@@ -53,7 +55,7 @@ async function start() {
 }
 start().catch((error) => {
   process.stderr.write(
-    error.code === "WEEKLY_CONFIG" ? `${error.message}\n` : "picpeak-usage startup failed; check database configuration\n",
+    ["WEEKLY_CONFIG", "ANALYTICS_CONFIG"].includes(error.code) ? `${error.message}\n` : "picpeak-usage startup failed; check database configuration\n",
   );
   process.exit(1);
 });
