@@ -158,10 +158,12 @@ function AccessForm({
 
 function Overview({
   credential,
+  voting,
   unlock,
   expire,
 }: {
   credential: string;
+  voting: boolean;
   unlock: (hash: string) => void;
   expire: () => void;
 }) {
@@ -283,6 +285,11 @@ function Overview({
           </li>
         </ul>
       </section>
+      {voting && (
+        <div className="notice">
+          <strong>{t.votingConnected}</strong> {t.votingDuration}
+        </div>
+      )}
       {!data.installations && (
         <div className="notice">
           <strong>{t.firstReportsTitle}</strong> {t.firstReportsIntro}
@@ -1192,6 +1199,7 @@ function App() {
           <Overview
             key={credential}
             credential={credential}
+            voting={Boolean(token)}
             unlock={unlock}
             expire={signOut}
           />
