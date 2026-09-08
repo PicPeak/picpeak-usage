@@ -3,6 +3,7 @@ const { ALL_FEATURE_KEYS, ProtocolError } = require("../protocol/protocol.cjs");
 const { readSnapshot } = require("./database");
 const { emptyInventory, addInventory } = require("./inventory");
 const DAY = 86400000;
+const { FIRST_REPORT_DATE } = require("./reportDates");
 
 function period(date, interval) {
   if (interval === "month") return `${date.slice(0, 7)}-01`;
@@ -20,6 +21,7 @@ function nextPeriod(date, interval) {
 function validDate(value) {
   return (
     typeof value === "string" &&
+    value >= FIRST_REPORT_DATE &&
     /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(Date.parse(`${value}T00:00:00.000Z`)) &&
     new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
@@ -86,7 +88,9 @@ async function history(
         : null;
     if (id) await collector.requireInstallation(id, tx);
     const base = () => {
-      const query = tx("reports");
+      // Older deployments may have accepted outliers. Keep their original
+      // envelopes available for private export, but exclude them from history.
+      const query = tx("reports").where("report_date", ">=", FIRST_REPORT_DATE);
       if (id) query.where({ installation_id: id });
       return query;
     };

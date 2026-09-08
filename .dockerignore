@@ -1,7 +1,7 @@
 .git
 **/node_modules
-dist
-storage
+**/dist
+**/storage
 **/coverage
 **/.nyc_output
 **/.cache

@@ -16,6 +16,7 @@ services:
     environment:
       MAINTAINER_TOKEN: ${MAINTAINER_TOKEN:?Set a random maintainer token of at least 32 characters}
       DATABASE_URL: ${DATABASE_URL:-}
+      EXPORT_TEMP_PATH: ${EXPORT_TEMP_PATH:-/app/storage}
       SESSION_SECRET: ${SESSION_SECRET:-}
       # The container is meant to run behind exactly one TLS-terminating reverse
       # proxy on this host, so one X-Forwarded-For hop is trusted by default.
