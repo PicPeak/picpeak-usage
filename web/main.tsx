@@ -1,4 +1,5 @@
 import { LocaleProvider, useLocale } from "./Locale";
+import { initializeAnalytics } from "./analytics";
 import { linkedFeedbackId } from "./maintainerLinks";
 import React, { useEffect, useRef, useState } from "react";
 import { useRequestScope } from "./useRequestScope";
@@ -705,19 +706,19 @@ function Transparency() {
           <p>{t.signalMeaning}</p>
           <p>{t.schemaCompatibility}</p>
           <p>{t.layoutValues}</p>
-          <a className="btn" href="/schema/usage.v5.json">
+          <a className="btn" href="/schema/usage.v5.json" data-analytics-event="Read schema">
             {t.schemaV5}
           </a>{" "}
-          <a className="btn" href="/schema/usage.v4.json">
+          <a className="btn" href="/schema/usage.v4.json" data-analytics-event="Read schema">
             {t.schemaV4}
           </a>{" "}
-          <a className="btn" href="/schema/usage.v3.json">
+          <a className="btn" href="/schema/usage.v3.json" data-analytics-event="Read schema">
             {t.schemaV3}
           </a>{" "}
-          <a className="btn" href="/schema/usage.v2.json">
+          <a className="btn" href="/schema/usage.v2.json" data-analytics-event="Read schema">
             {t.schemaV2}
           </a>{" "}
-          <a className="btn" href="/schema/usage.v1.json">
+          <a className="btn" href="/schema/usage.v1.json" data-analytics-event="Read schema">
             {t.schemaV1}
           </a>
         </section>
@@ -739,6 +740,11 @@ function Transparency() {
           </section>
         </div>
       </div>
+      <section className="panel prose section">
+        <h2>{t.websiteAnalyticsTitle}</h2>
+        <p>{t.websiteAnalyticsIntro}</p>
+        <p>{t.websiteAnalyticsPrivacy}</p>
+      </section>
       <FeatureCatalog />
       <section className="panel prose section">
         <h2>{t.weeklyEmailTitle}</h2>
@@ -765,7 +771,7 @@ function Transparency() {
             </a>
             {t.sourceContents}
           </p>
-          <a className="btn" href="/source.tar.gz" download>
+          <a className="btn" href="/source.tar.gz" data-analytics-event="Download source" download>
             {t.downloadSource}
           </a>
         </div>
@@ -1166,7 +1172,7 @@ function App() {
               {t[label]}
             </a>
           ))}
-          <a className="textlink" href={SITE}>
+          <a className="textlink" href={SITE} data-analytics-event="Open website">
             picpeak.app
           </a>
           {credential && (
@@ -1229,7 +1235,7 @@ function App() {
             <a className="textlink" href={PROPOSAL} rel="noreferrer">
               {t.proposalLink}
             </a>
-            <a className="textlink" href={SITE}>
+            <a className="textlink" href={SITE} data-analytics-event="Open website">
               picpeak.app
             </a>
             <a
@@ -1250,3 +1256,4 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </LocaleProvider>,
 );
+void initializeAnalytics();

@@ -21,6 +21,9 @@ services:
       # The container is meant to run behind exactly one TLS-terminating reverse
       # proxy on this host, so one X-Forwarded-For hop is trusted by default.
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      UMAMI_SCRIPT_URL: ${UMAMI_SCRIPT_URL:-}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+      UMAMI_DOMAINS: ${UMAMI_DOMAINS:-usage.picpeak.app}
       WEEKLY_REPORT_ENABLED: ${WEEKLY_REPORT_ENABLED:-false}
       WEEKLY_REPORT_TO: ${WEEKLY_REPORT_TO:-}
       WEEKLY_REPORT_BASE_URL: ${WEEKLY_REPORT_BASE_URL:-https://usage.picpeak.app}
