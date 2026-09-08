@@ -16,6 +16,7 @@ const { readSnapshot } = require("./database");
 const { emptyInventory, addInventory } = require("./inventory");
 const { recordParticipation, pruneWeeklyActivity } = require("./weeklyActivity");
 const PAGE_SIZE = 200;
+const { FIRST_REPORT_DATE } = require("./reportDates");
 
 class Collector {
   constructor(db, options = {}) {
@@ -193,6 +194,8 @@ class Collector {
             expires_at: now + MAX_AGE_MS * 2,
           });
           if (packet.action === "report") {
+            if (packet.payload.report_date < FIRST_REPORT_DATE)
+              throw new ProtocolError("INVALID_REPORT_DATE");
             if (schemaRank(packet.schema_version) > schemaRank(schemaForConsent(installation.consent_version)))
               throw new ProtocolError("CONSENT_REQUIRED", 409);
             // One current daily report plus one delayed report per receiving day.

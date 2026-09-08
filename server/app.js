@@ -5,7 +5,7 @@ const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const { Collector } = require("./collector");
-const { streamExport } = require("./exports");
+const { createExportStreamer } = require("./exports");
 const { history } = require("./history");
 const { reporters, pageOptions } = require("./maintainer");
 const {
@@ -27,9 +27,11 @@ function createApp({
   maintainerToken = process.env.MAINTAINER_TOKEN,
   now,
   disableRateLimit = false,
+  exportOptions,
   ...options
 }) {
   const app = express();
+  const streamExport = createExportStreamer(exportOptions);
   const collector = new Collector(db, {
     now,
     sessionSecret: process.env.SESSION_SECRET || maintainerToken,

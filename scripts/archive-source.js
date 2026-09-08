@@ -41,6 +41,7 @@ const files = [
 // Builds run outside Git too (Docker and downloaded source archives). Do not
 // recursively include ignored local files just because their parent is source.
 const localNames = new Set([
+  "storage", "dist", "coverage",
   "node_modules", ".git", ".local", ".cache", ".vite", ".nyc_output",
   ".vscode", ".idea", ".claude", ".codex", ".cursor", ".playwright-mcp",
   "test-results", "playwright-report", "blob-report",
