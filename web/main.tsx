@@ -1136,8 +1136,8 @@ function App() {
             token: connect,
             expiresAt: Date.parse(value.expires_at),
           });
-          setRoute("/requests");
-          history.replaceState(null, "", "/requests");
+          setRoute("/");
+          history.replaceState(null, "", "/");
         })
         .catch(() => {
           if (!controller.signal.aborted) setSessionError(true);
