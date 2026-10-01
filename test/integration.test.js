@@ -422,12 +422,12 @@ test(
   "protocol files are byte-identical in both repositories",
   { skip: !UsageService },
   async () => {
-    for (const file of ["schema.cjs", "protocol.cjs", "features.v2.json", "features.v3.json", "features.v4.json", "features.v5.json"])
+    for (const file of ["schema.cjs", "protocol.cjs", "features.v2.json", "features.v3.json", "features.v4.json", "features.v5.json", "features.v6.json"])
       assert.equal(
         await fs.readFile(path.join(root, "backend/src/usage", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../protocol", file), "utf8"),
       );
-    for (const file of ["usage-coverage.v2.json", "usage-coverage.v3.json", "usage-coverage.v4.json", "usage-coverage.v5.json", "FEATURE_COVERAGE.md"])
+    for (const file of ["usage-coverage.v2.json", "usage-coverage.v3.json", "usage-coverage.v4.json", "usage-coverage.v5.json", "usage-coverage.v6.json", "FEATURE_COVERAGE.md"])
       assert.equal(await fs.readFile(path.join(root, "docs", file), "utf8"),
         await fs.readFile(path.join(__dirname, "../docs", file), "utf8"));
     const client = JSON.parse(await fs.readFile(path.join(root, "frontend/src/i18n/locales/de.json"), "utf8")).productUsage;
@@ -646,7 +646,7 @@ test('pending v3 registration retries keep the originally approved scope on a v4
   assert.equal((await restarted.preview()).features.gallery_downloads_restricted, undefined);
 });
 
-for (const version of ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4']) test(`${version} to v5 preserves pending packets and starts precise evidence only after confirmed consent`, { skip: !UsageService }, async t => {
+for (const version of ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4']) test(`${version} to the current schema preserves pending packets and starts precise evidence only after confirmed consent`, { skip: !UsageService }, async t => {
   const { service, local, c, clock, transport, options } = await setup(t);
   const p = require('../protocol/protocol.cjs');
   await service.enable(p.CONSENT_VERSIONS[version]);
@@ -660,13 +660,13 @@ for (const version of ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4']) test(`${
   const restarted = new UsageService(local, options);
   await restarted.deliver(await local('product_usage_state').first());
   transport.loseReceipt = true;
-  await restarted.command('consent', { consent_version: 'usage-consent.v5' });
+  await restarted.command('consent', { consent_version: p.CURRENT_CONSENT_VERSION });
   await restarted.markUsed(['email_template_editing', 'email_template_delivery']);
   assert.equal((await restarted.status()).schema_version, version);
   assert.ok(!(await local('product_usage_markers').pluck('feature')).includes('email_template_delivery'));
   const again = new UsageService(local, options);
   await again.deliver(await local('product_usage_state').first());
-  assert.equal((await again.status()).schema_version, 'usage.v5');
+  assert.equal((await again.status()).schema_version, p.CURRENT_SCHEMA_VERSION);
   assert.equal((await again.status()).consent_update_available, false);
   assert.deepEqual(await local('product_usage_markers').pluck('feature'), []);
   await again.markUsed(['cms', 'email_template_delivery', 'PRIVATE@example.test']);

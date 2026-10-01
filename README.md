@@ -85,12 +85,12 @@ Every build includes /source.tar.gz containing a fixed allowlist of application 
 ## Contract and verification
 
 Old and partial reports remain readable after upgrades. The collector supports
-v1/v2/v3/v4/v5 and treats omitted or null measurements as unknown. Freshly signed
+v1/v2/v3/v4/v5/v6 and treats omitted or null measurements as unknown. Freshly signed
 delayed reports keep their original reporting date. Separate reception schemas
-at `/schema/ingress/usage.v1.json` (also v2/v3/v4/v5) describe this compatibility;
+at `/schema/ingress/usage.v1.json` (also v2/v3/v4/v5/v6) describe this compatibility;
 the original complete sender schemas, consent and privacy boundaries stay fixed.
 
-The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schemas are served at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json` `/schema/usage.v4.json` and `/schema/usage.v5.json`, with the current EN/DE catalog at `/schema/features.v5.json`. PicPeak carries byte-identical protocol/catalog files in `backend/src/usage/`.
+The [protocol reference](docs/PROTOCOL.md) defines every field and operation. JSON Schemas are served at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json`, `/schema/usage.v4.json`, `/schema/usage.v5.json` and `/schema/usage.v6.json`, with the current EN/DE catalog at `/schema/features.v6.json`. PicPeak carries byte-identical protocol/catalog files in `backend/src/usage/`.
 
 The [full coverage matrix](docs/FEATURE_COVERAGE.md) covers 87 capabilities: 64 configured/used pairs and 23 configuration-only signals. ML face recognition is included without biometric results. v3 adds 13 specific capabilities, including invoice import, plus exactly two installation inventory totals: stored galleries and non-video photo records, including drafts and retained archived records. No contents, per-gallery breakdowns, visitor behavior or identities.
 

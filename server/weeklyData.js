@@ -1,7 +1,7 @@
 "use strict";
 const { readSnapshot } = require("./database");
 const { emptyInventory, addInventory } = require("./inventory");
-const { features } = require("../protocol/features.v5.json");
+const { features } = require("../protocol/features.v6.json");
 const { DAY, WEEK } = require("./weeklyConfig");
 const { RETENTION_DAYS } = require("./weeklyActivity");
 

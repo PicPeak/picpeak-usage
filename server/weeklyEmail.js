@@ -1,6 +1,6 @@
 "use strict";
 const messages = require("./weeklyMessages.json");
-const catalog = require("../protocol/features.v5.json");
+const catalog = require("../protocol/features.v6.json");
 const german = require("../web/locales/catalog.de.json");
 const { DAY } = require("./weeklyConfig");
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);

@@ -70,7 +70,7 @@ for (const engine of ['sqlite', ...(process.env.TEST_DATABASE_URL ? ['pg'] : [])
   test(`${engine}: v4 requires new consent and keeps old report retries valid without changing their payload`, async t => {
     const { app, c, clock, register, envelope, report, send } = await fixture(t, engine);
     assert.deepEqual((await request(app).get('/api/health').expect(200)).body.supported_schemas,
-      ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4', 'usage.v5']);
+      ['usage.v1', 'usage.v2', 'usage.v3', 'usage.v4', 'usage.v5', 'usage.v6']);
     assert.deepEqual((await request(app).get('/schema/features.v4.json').expect(200)).body, p.CATALOGS['usage.v4']);
     for (const version of ['usage.v1', 'usage.v2', 'usage.v3']) {
       const id = await register(version);

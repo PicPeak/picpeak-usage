@@ -713,6 +713,9 @@ function Transparency() {
           <p>{t.signalMeaning}</p>
           <p>{t.schemaCompatibility}</p>
           <p>{t.layoutValues}</p>
+          <a className="btn" href="/schema/usage.v6.json" data-analytics-event="Read schema">
+            {t.schemaV6}
+          </a>{" "}
           <a className="btn" href="/schema/usage.v5.json" data-analytics-event="Read schema">
             {t.schemaV5}
           </a>{" "}
