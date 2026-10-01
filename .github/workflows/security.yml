@@ -29,7 +29,7 @@ jobs:
         with:
           repository: PicPeak/picpeak
           # usage.v6 client (PicPeak/picpeak#1743): repin to its merge commit once it lands.
-          ref: 234a17c5
+          ref: 234a17c5d7c53656d76060d0931510c1606eb382
           path: picpeak
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
