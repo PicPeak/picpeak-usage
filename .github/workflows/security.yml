@@ -28,8 +28,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: PicPeak/picpeak
-          # Includes the English-only catalogs from PicPeak/picpeak#1330.
-          ref: 9396d019c6ab7cea81662193410c11ddfd77175c
+          # usage.v6 client (PicPeak/picpeak#1743): repin to its merge commit once it lands.
+          ref: 234a17c5
           path: picpeak
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
