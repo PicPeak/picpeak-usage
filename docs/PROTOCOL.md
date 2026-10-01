@@ -1,4 +1,4 @@
-# Versioned usage protocol (usage.v1 / usage.v2 / usage.v3 / usage.v4 / usage.v5)
+# Versioned usage protocol (usage.v1 / usage.v2 / usage.v3 / usage.v4 / usage.v5 / usage.v6)
 
 Implements the backend-signs/backend-sends decision in
 [#1110's transport follow-up](https://github.com/PicPeak/picpeak/issues/1110#issuecomment-5367220785).
@@ -7,16 +7,16 @@ Browser transport is not implemented. CORS is not authentication.
 ## Exact envelope
 
 `POST /api/envelopes` accepts at most 16 KiB of uncompressed JSON. The complete
-closed sender JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json`, `/schema/usage.v4.json`, and `/schema/usage.v5.json`.
-The current field catalog is at `/schema/features.v5.json`; the v2/v3 catalogs retain their original definitions. Unknown fields are rejected at
+closed sender JSON Schemas are at `/schema/usage.v1.json`, `/schema/usage.v2.json`, `/schema/usage.v3.json`, `/schema/usage.v4.json`, `/schema/usage.v5.json`, and `/schema/usage.v6.json`.
+The current field catalog is at `/schema/features.v6.json`; the v2/v3 catalogs retain their original definitions. Unknown fields are rejected at
 every level. No arbitrary attributes or free-form telemetry are supported.
 
 | Field                    | Meaning                                                       |
 | ------------------------ | ------------------------------------------------------------- |
-| `packet.schema_version`  | Literal `usage.v1`, `usage.v2`, `usage.v3`, `usage.v4` or `usage.v5`; never inferred from payload |
+| `packet.schema_version`  | Literal `usage.v1`, `usage.v2`, `usage.v3`, `usage.v4`, `usage.v5` or `usage.v6`; never inferred from payload |
 | `packet.installation_id` | SHA-256 of Ed25519 SPKI public-key DER, lowercase hex         |
 | `packet.packet_id`       | UUIDv4 identifying an immutable operation                     |
-| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2/v3/v4/v5 also `consent` |
+| `packet.action`          | `register`, `report`, `delete`, `feedback`, `vote`, `session`; v2/v3/v4/v5/v6 also `consent` |
 | `packet.sequence`        | 0 at registration; increments per accepted operation          |
 | `packet.payload`         | Action-specific closed schema, below                          |
 | `public_key`             | Ed25519 SPKI DER, unpadded base64url                          |
@@ -53,7 +53,7 @@ The separate, closed reception schemas are published at
 `/schema/ingress/usage.v1.json`, `/schema/ingress/usage.v2.json` and
 `/schema/ingress/usage.v3.json` and `/schema/ingress/usage.v4.json`. For `report` only, they accept omitted or `null`
 measurements: `picpeak_version`, `features`, individual capabilities and their
-known `configured`/`used` members, `gallery_layouts`, and v3/v4/v5 `inventory` with
+known `configured`/`used` members, `gallery_layouts`, and v3/v4/v5/v6 `inventory` with
 either or both totals. Other supplied values retain their original types,
 bounds and per-version allowlists. A missing value is unknown, never false or
 zero; an explicit empty layout list is known and means no layouts were reported.
@@ -104,7 +104,7 @@ receipt was lost. No migration or rewriting of stored reports is required.
 
 ## Actions
 
-- `register`: the matching `usage-consent.v1`, `usage-consent.v2`, `usage-consent.v3`, `usage-consent.v4` or `usage-consent.v5`,
+- `register`: the matching `usage-consent.v1`, `usage-consent.v2`, `usage-consent.v3`, `usage-consent.v4`, `usage-consent.v5` or `usage-consent.v6`,
   with sequence zero. A second
   different registration for the same identity conflicts.
 - `report`: `picpeak_version`, `report_date`, `generated_at`, `features`, and
@@ -336,3 +336,20 @@ unknown; v1–v4 envelopes retain their exact allowlists and validation. Confirm
 unchanged, local markers reset only on the matching consent receipt, and late
 responses cannot reverse opt-out. The existing two inventory totals and stable
 pseudonymous installation identity remain unchanged. Deploy collector first.
+
+## usage.v6 webhook delivery evidence
+
+v6 keeps all 87 v5 keys, the 64 configured/used pairs, the 23 configuration-only
+signals and both inventory totals unchanged. The single change is the definition
+of `webhooks` use: any successful delivery (HTTP 2xx) of an outbound webhook,
+automatic event-triggered or explicit admin test/replay, instead of only an
+admin test/replay enqueue. The PicPeak client records the bit from its delivery
+worker on a 2xx, and only under confirmed `usage-consent.v6`; earlier consents
+keep the enqueue meaning, and route enqueue evidence stops being recorded at v6.
+No destination, event type, payload, timestamp or count enters the usage
+subsystem; it stays one installation-wide boolean.
+
+The v6 receiver schema is `/schema/ingress/usage.v6.json`. v1–v5 envelopes keep
+their exact allowlists and validation. Confirmed `usage-consent.v6` is required
+before a v6 report is accepted; pending packets finish unchanged and local
+markers reset only on the matching consent receipt. Deploy collector first.

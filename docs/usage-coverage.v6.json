@@ -205,7 +205,7 @@
       "signals": [
         "webhooks"
       ],
-      "reason": "Active configuration and manual test/replay enqueue only; no delivery data."
+      "reason": "Active configuration plus one bit for any successful delivery, automatic or manual test/replay; no delivery data."
     },
     "whatsapp": {
       "signals": [
@@ -215,7 +215,7 @@
     }
   },
   "reviewed_picpeak_base": "a5ff9264 (3.124.1-beta.0)",
-  "schema_version": "usage.v3",
+  "schema_version": "usage.v6",
   "purpose": "Product capability prioritization and installation gallery/photo totals; no contents, identities, per-entity breakdowns, action frequencies or visitor observations.",
   "route_families": {
     "acceptInvite.js": {
@@ -1391,7 +1391,7 @@
       "signals": [
         "webhooks"
       ],
-      "reason": "Active configuration existence plus successful admin manual test/replay enqueue. Actual network delivery/results/subscriptions/destinations excluded.",
+      "reason": "Active configuration existence. The manual test/replay enqueue (202) was the v2-v5 evidence of use and is recorded only under those consents; under usage.v6 the delivery worker records the successful delivery itself (issue 1740). Actual network results/subscriptions/destinations excluded.",
       "route_signatures": [
         "GET /",
         "POST /",
@@ -2257,7 +2257,7 @@
     },
     "webhooks": {
       "configuration_decision": "Technical configuration exists; may be a default, not activity.",
-      "use_decision": "Successful explicit admin webhook test/replay; no automatic or visitor-triggered deliveries."
+      "use_decision": "Successful delivery (HTTP 2xx) of any outbound webhook, whether triggered automatically by an event or by an explicit admin test/replay; no destinations, event types, payloads, timestamps or counts."
     },
     "restore": {
       "configuration_decision": "Built in; display a label, not a percentage.",

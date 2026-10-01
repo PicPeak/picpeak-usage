@@ -246,7 +246,7 @@
     "webhooks": {
       "name": "Ausgehende Webhooks",
       "configured": "Mindestens ein aktiver Webhook ist konfiguriert; keine Ziele, Abonnements, Geheimnisse oder Zustellprotokolle.",
-      "used": "Erfolgreicher expliziter Admin-Webhook-Test/-Replay; keine automatischen oder durch Besucher ausgelösten Zustellungen."
+      "used": "Erfolgreiche Zustellung (HTTP 2xx) eines beliebigen ausgehenden Webhooks, ob automatisch durch ein Ereignis oder durch einen expliziten Admin-Test/-Replay ausgelöst; keine Ziele, Ereignistypen, Payloads, Zeitstempel oder Zähler."
     },
     "restore": {
       "name": "Wiederherstellung",
