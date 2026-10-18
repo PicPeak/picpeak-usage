@@ -9,7 +9,7 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build && npm prune --omit=dev --package-lock=false --no-audit --no-fund && mkdir -p /app/storage
 
-FROM gcr.io/distroless/nodejs22-debian13:nonroot@sha256:4e4fb0ce55fd73901600796ef079a9490369d2515d7da31633a91608c82ca13b
+FROM gcr.io/distroless/nodejs22-debian13:nonroot@sha256:ec2313763dd43931543bd03830466e0c409ce73a487e8d46f10db72d3b816c1c
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3190 DATABASE_PATH=/app/storage/usage.sqlite TRUST_PROXY_HOPS=1
 COPY --from=build --chown=1000:1000 /app/package.json /app/package-lock.json ./
